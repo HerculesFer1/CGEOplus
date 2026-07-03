@@ -76,10 +76,10 @@ export async function executarImport(
       }
       stats.analisesInseridas++;
     } catch (err) {
-      stats.erros.push({
-        linha: l,
-        problema: err instanceof Error ? err.message : String(err),
-      });
+      let msg = err instanceof Error ? err.message : String(err);
+      const cause = (err as { cause?: unknown }).cause;
+      if (cause instanceof Error) msg = `${msg} | cause: ${cause.message}`;
+      stats.erros.push({ linha: l, problema: msg });
     }
 
     if (onProgress && i % 25 === 0) onProgress(i + 1, linhas.length);
