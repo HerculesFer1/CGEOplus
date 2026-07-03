@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useTransition } from "react";
+import { Suspense, useTransition } from "react";
 import { ArrowLeft, Sparkles, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,6 +17,14 @@ import { TEST_USERS } from "@/lib/auth/test-users";
 import { loginAsTestUserAction } from "./actions";
 
 export default function DevLoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <DevLoginContent />
+    </Suspense>
+  );
+}
+
+function DevLoginContent() {
   const router = useRouter();
   const params = useSearchParams();
   const [isPending, startTransition] = useTransition();

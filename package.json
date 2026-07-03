@@ -49,7 +49,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@rolldown/binding-win32-x64-msvc": "^1.1.4",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -67,5 +66,8 @@
     "tsx": "^4.22.5",
     "typescript": "^5",
     "vitest": "^4.1.9"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-win32-x64-msvc": "1.1.4"
   }
 }
