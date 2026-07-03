@@ -16,8 +16,10 @@ if (!connectionString) {
 }
 
 const queryClient = postgres(connectionString, {
-  prepare: false, // requerido pelo pooler do Supabase
-  max: 10,
+  prepare: false,
+  max: 1,
+  idle_timeout: 20,
+  connect_timeout: 10,
 });
 
 export const db = drizzle(queryClient, { schema });
