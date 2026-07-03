@@ -1,23 +1,23 @@
-"use client";
-
 import { Search, Command } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "@/components/brand/logo";
+import { UserMenu } from "@/components/shell/user-menu";
+import { getCurrentTestUser } from "@/lib/auth/session";
 
-export function Topbar() {
+export async function Topbar() {
+  const user = await getCurrentTestUser();
+
   return (
     <header
       className={
         "sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-[var(--bg)]/80 px-4 backdrop-blur-xl lg:px-8"
       }
     >
-      {/* Logo aparece só no mobile (sidebar oculta) */}
       <div className="lg:hidden">
         <Logo size={18} />
       </div>
 
-      {/* Barra de busca / Command palette trigger */}
       <button
         type="button"
         className="ml-auto inline-flex h-9 w-full max-w-sm items-center gap-2 rounded-full border bg-[var(--surface)] px-4 text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
@@ -31,6 +31,7 @@ export function Topbar() {
       </button>
 
       <ThemeToggle />
+      <UserMenu user={user} />
     </header>
   );
 }

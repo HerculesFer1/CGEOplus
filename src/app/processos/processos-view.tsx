@@ -57,10 +57,11 @@ interface Props {
   currentFilters: { sistema?: string; busca?: string };
 }
 
-const SISTEMA_COLORS: Record<Processo["sistema"], "accent" | "success" | "warning"> = {
+const SISTEMA_COLORS: Record<Processo["sistema"], "accent" | "success" | "warning" | "danger"> = {
   SEI: "accent",
   SIGA: "success",
   SICAR: "warning",
+  SINAFLOR: "danger",
 };
 
 const STATUS_LABEL: Record<Processo["statusAtual"], string> = {
