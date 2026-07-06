@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { motion } from "framer-motion";
 import { AlertTriangle, Layers, Pencil, Plus, Power } from "lucide-react";
 import { toast } from "sonner";
@@ -22,7 +22,22 @@ export interface NucleoRow {
   membrosAtivos: number;
 }
 
-export function NucleosView({ nucleos }: { nucleos: NucleoRow[] }) {
+export interface ServidorOption {
+  id: string;
+  nome: string;
+  apelido: string;
+  /** Nome do núcleo principal atual, ou null se sem vínculo. */
+  nucleoAtual: string | null;
+  /** ID do núcleo atual, usado internamente pra reconciliação. */
+  nucleoAtualId: string | null;
+}
+
+interface Props {
+  nucleos: NucleoRow[];
+  servidores: ServidorOption[];
+}
+
+export function NucleosView({ nucleos, servidores }: Props) {
   const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState<NucleoRow | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -30,6 +45,13 @@ export function NucleosView({ nucleos }: { nucleos: NucleoRow[] }) {
   const ativos = nucleos.filter((n) => n.ativo);
   const total = ativos.length;
   const abaixoMin = ativos.filter((n) => n.membrosAtivos < n.minMembros).length;
+
+  const membrosAtuaisIds = useMemo(() => {
+    if (!editing) return [];
+    return servidores
+      .filter((s) => s.nucleoAtualId === editing.id)
+      .map((s) => s.id);
+  }, [editing, servidores]);
 
   function handleNew() {
     setEditing(null);
@@ -150,6 +172,8 @@ export function NucleosView({ nucleos }: { nucleos: NucleoRow[] }) {
         open={openForm}
         onOpenChange={setOpenForm}
         nucleo={editing}
+        servidores={servidores}
+        membrosAtuaisIds={membrosAtuaisIds}
       />
     </motion.div>
   );

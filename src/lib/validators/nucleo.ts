@@ -24,6 +24,7 @@ export const nucleoCreateSchema = z.object({
     .min(1, "Mínimo 1.")
     .max(50, "Máximo 50."),
   ativo: z.boolean(),
+  membrosIds: z.array(z.string().uuid()),
 });
 
 export const nucleoUpdateSchema = nucleoCreateSchema.partial().extend({
