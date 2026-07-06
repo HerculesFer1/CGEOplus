@@ -37,23 +37,26 @@ import { deleteServidorAction } from "./actions";
 
 interface Props {
   initialData: Servidor[];
+  nucleosDisponiveis: string[];
 }
 
 const NUCLEO_COLORS: Record<string, "accent" | "success" | "warning" | "danger" | "default"> = {
-  Coordenacao: "accent",
+  "Gerência": "accent",
   Licenciamento: "success",
   CAR: "warning",
-  Fiscalizacao: "danger",
+  "Fiscalização": "danger",
   Administrativo: "default",
 };
 
 const VINCULO_COLORS: Record<string, "accent" | "outline" | "default"> = {
   Efetivo: "accent",
+  "Consultor PSI": "outline",
+  "Consultor Pilares II": "outline",
   Consultor: "outline",
   Suporte: "default",
 };
 
-export function ServidoresView({ initialData }: Props) {
+export function ServidoresView({ initialData, nucleosDisponiveis }: Props) {
   const [search, setSearch] = useState("");
   const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState<Servidor | null>(null);
@@ -210,6 +213,7 @@ export function ServidoresView({ initialData }: Props) {
         open={openForm}
         onOpenChange={setOpenForm}
         servidor={editing}
+        nucleosDisponiveis={nucleosDisponiveis}
       />
 
       <AlertDialog

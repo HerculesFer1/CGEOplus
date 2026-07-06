@@ -1,12 +1,18 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, Layers } from "lucide-react";
+import { AlertTriangle, Layers, Pencil, Plus, Power } from "lucide-react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { fadeSlideUp, staggerContainer, spring } from "@/lib/design/motion";
 
-interface NucleoRow {
+import { NucleoFormDialog } from "./nucleo-form-dialog";
+import { toggleNucleoAtivoAction } from "./actions";
+
+export interface NucleoRow {
   id: string;
   nome: string;
   descricao: string | null;
@@ -17,8 +23,36 @@ interface NucleoRow {
 }
 
 export function NucleosView({ nucleos }: { nucleos: NucleoRow[] }) {
-  const total = nucleos.length;
-  const abaixoMin = nucleos.filter((n) => n.membrosAtivos < n.minMembros).length;
+  const [openForm, setOpenForm] = useState(false);
+  const [editing, setEditing] = useState<NucleoRow | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  const ativos = nucleos.filter((n) => n.ativo);
+  const total = ativos.length;
+  const abaixoMin = ativos.filter((n) => n.membrosAtivos < n.minMembros).length;
+
+  function handleNew() {
+    setEditing(null);
+    setOpenForm(true);
+  }
+
+  function handleEdit(n: NucleoRow) {
+    setEditing(n);
+    setOpenForm(true);
+  }
+
+  function handleToggle(n: NucleoRow) {
+    startTransition(async () => {
+      const res = await toggleNucleoAtivoAction(n.id);
+      if (res.ok) {
+        toast.success(
+          n.ativo ? `${n.nome} desativado.` : `${n.nome} reativado.`,
+        );
+      } else {
+        toast.error(res.error);
+      }
+    });
+  }
 
   return (
     <motion.div
@@ -27,13 +61,22 @@ export function NucleosView({ nucleos }: { nucleos: NucleoRow[] }) {
       variants={staggerContainer}
       className="space-y-8"
     >
-      <motion.div variants={fadeSlideUp}>
-        <p className="text-sm text-[var(--text-muted)]">Gestão</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">Núcleos</h1>
-        <p className="mt-2 text-sm text-[var(--text-muted)]">
-          {total} núcleos configurados · {abaixoMin} operando abaixo do mínimo
-          funcional.
-        </p>
+      <motion.div
+        variants={fadeSlideUp}
+        className="flex flex-wrap items-end justify-between gap-4"
+      >
+        <div>
+          <p className="text-sm text-[var(--text-muted)]">Gestão</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">Núcleos</h1>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">
+            {total} núcleos ativos · {abaixoMin} operando abaixo do mínimo
+            funcional.
+          </p>
+        </div>
+        <Button onClick={handleNew} className="gap-2">
+          <Plus className="h-4 w-4" strokeWidth={1.75} />
+          Novo núcleo
+        </Button>
       </motion.div>
 
       <motion.div
@@ -46,7 +89,7 @@ export function NucleosView({ nucleos }: { nucleos: NucleoRow[] }) {
             variants={fadeSlideUp}
             whileHover={{ y: -2 }}
             transition={spring.gentle}
-            className="rounded-2xl border bg-[var(--elevated)] p-6 shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-md)]"
+            className={`rounded-2xl border bg-[var(--elevated)] p-6 shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-md)] ${n.ativo ? "" : "opacity-60"}`}
           >
             <div className="flex items-start justify-between">
               <div
@@ -55,12 +98,15 @@ export function NucleosView({ nucleos }: { nucleos: NucleoRow[] }) {
               >
                 <Layers className="h-5 w-5" strokeWidth={1.75} />
               </div>
-              {n.membrosAtivos < n.minMembros && (
-                <Badge variant="danger">
-                  <AlertTriangle className="h-3 w-3" />
-                  crítico
-                </Badge>
-              )}
+              <div className="flex items-center gap-2">
+                {!n.ativo && <Badge variant="outline">inativo</Badge>}
+                {n.ativo && n.membrosAtivos < n.minMembros && (
+                  <Badge variant="danger">
+                    <AlertTriangle className="h-3 w-3" />
+                    crítico
+                  </Badge>
+                )}
+              </div>
             </div>
 
             <h3 className="mt-4 text-lg font-semibold">{n.nome}</h3>
@@ -74,9 +120,37 @@ export function NucleosView({ nucleos }: { nucleos: NucleoRow[] }) {
               <MiniStat label="Membros ativos" value={n.membrosAtivos} />
               <MiniStat label="Mínimo funcional" value={n.minMembros} />
             </div>
+
+            <div className="mt-5 flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 gap-1"
+                onClick={() => handleEdit(n)}
+              >
+                <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+                Editar
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => handleToggle(n)}
+                disabled={isPending}
+                aria-label={n.ativo ? "Desativar núcleo" : "Reativar núcleo"}
+                title={n.ativo ? "Desativar núcleo" : "Reativar núcleo"}
+              >
+                <Power className="h-3.5 w-3.5" strokeWidth={1.75} />
+              </Button>
+            </div>
           </motion.div>
         ))}
       </motion.div>
+
+      <NucleoFormDialog
+        open={openForm}
+        onOpenChange={setOpenForm}
+        nucleo={editing}
+      />
     </motion.div>
   );
 }

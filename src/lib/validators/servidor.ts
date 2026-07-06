@@ -5,16 +5,13 @@ import { z } from "zod";
  * Compartilhados entre formulários (client) e services (server).
  */
 
-export const TIPO_VINCULO = ["Efetivo", "Consultor", "Suporte"] as const;
-export const STATUS_SERVIDOR = ["ativo", "inativo", "afastado"] as const;
-
-export const NUCLEO_NAMES = [
-  "Coordenacao",
-  "Licenciamento",
-  "CAR",
-  "Fiscalizacao",
-  "Administrativo",
+export const TIPO_VINCULO = [
+  "Efetivo",
+  "Consultor PSI",
+  "Consultor Pilares II",
+  "Suporte",
 ] as const;
+export const STATUS_SERVIDOR = ["ativo", "inativo", "afastado"] as const;
 
 export const servidorCreateSchema = z.object({
   nome: z
@@ -38,9 +35,10 @@ export const servidorCreateSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Data no formato AAAA-MM-DD."),
   status: z.enum(STATUS_SERVIDOR),
-  nucleoPrincipal: z.enum(NUCLEO_NAMES, {
-    message: "Selecione o núcleo principal.",
-  }),
+  nucleoPrincipal: z
+    .string()
+    .trim()
+    .min(1, "Selecione o núcleo principal."),
 });
 
 export const servidorUpdateSchema = servidorCreateSchema.partial().extend({

@@ -31,10 +31,10 @@ import type {
 } from "@/lib/services/dashboard.service";
 
 const NUCLEO_COLORS: Record<string, "accent" | "success" | "warning" | "danger" | "default"> = {
-  Coordenacao: "accent",
+  "Gerência": "accent",
   Licenciamento: "success",
   CAR: "warning",
-  Fiscalizacao: "danger",
+  "Fiscalização": "danger",
   Administrativo: "default",
 };
 

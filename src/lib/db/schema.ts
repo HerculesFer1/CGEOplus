@@ -33,6 +33,8 @@ import { relations, sql } from "drizzle-orm";
 export const vinculoEnum = pgEnum("vinculo", [
   "Efetivo",
   "Consultor",
+  "Consultor PSI",
+  "Consultor Pilares II",
   "Suporte",
 ]);
 

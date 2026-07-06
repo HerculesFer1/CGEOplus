@@ -27,7 +27,6 @@ import {
 import {
   servidorCreateSchema,
   TIPO_VINCULO,
-  NUCLEO_NAMES,
   type ServidorCreateInput,
 } from "@/lib/validators/servidor";
 import type { Servidor } from "@/lib/services/servidores.service";
@@ -38,22 +37,27 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   servidor: Servidor | null;
+  nucleosDisponiveis: string[];
 }
 
-const DEFAULT_VALUES: ServidorCreateInput = {
-  nome: "",
-  apelido: "",
-  email: "",
-  matricula: "",
-  cargo: "",
-  tipoVinculo: "Consultor",
-  especialidade: "",
-  dataIngresso: new Date().toISOString().slice(0, 10),
-  status: "ativo",
-  nucleoPrincipal: "Licenciamento",
-};
-
-export function ServidorFormDialog({ open, onOpenChange, servidor }: Props) {
+export function ServidorFormDialog({
+  open,
+  onOpenChange,
+  servidor,
+  nucleosDisponiveis,
+}: Props) {
+  const DEFAULT_VALUES: ServidorCreateInput = {
+    nome: "",
+    apelido: "",
+    email: "",
+    matricula: "",
+    cargo: "",
+    tipoVinculo: "Consultor PSI",
+    especialidade: "",
+    dataIngresso: new Date().toISOString().slice(0, 10),
+    status: "ativo",
+    nucleoPrincipal: nucleosDisponiveis[0] ?? "",
+  };
   const [isPending, startTransition] = useTransition();
   const isEdit = !!servidor;
 
@@ -164,7 +168,7 @@ export function ServidorFormDialog({ open, onOpenChange, servidor }: Props) {
             <Select
               value={form.watch("nucleoPrincipal")}
               onValueChange={(v) =>
-                form.setValue("nucleoPrincipal", v as ServidorCreateInput["nucleoPrincipal"], {
+                form.setValue("nucleoPrincipal", v, {
                   shouldValidate: true,
                 })
               }
@@ -173,7 +177,7 @@ export function ServidorFormDialog({ open, onOpenChange, servidor }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {NUCLEO_NAMES.map((n) => (
+                {nucleosDisponiveis.map((n) => (
                   <SelectItem key={n} value={n}>
                     {n}
                   </SelectItem>

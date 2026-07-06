@@ -15,38 +15,36 @@ import type {
   ServidorRepository,
 } from "@/lib/services/servidores.service";
 
-// Cache de núcleos (id ↔ nome) — carregado sob demanda
-let nucleoNameCache: Map<string, string> | null = null;
-let nucleoIdCache: Map<string, string> | null = null;
-
-async function loadNucleoCaches() {
-  if (nucleoNameCache && nucleoIdCache) return;
-  const rows = await db.select({ id: nucleos.id, nome: nucleos.nome }).from(nucleos);
-  nucleoNameCache = new Map(rows.map((r) => [r.id, r.nome]));
-  nucleoIdCache = new Map(rows.map((r) => [r.nome, r.id]));
-}
-
-function invalidateNucleoCaches() {
-  nucleoNameCache = null;
-  nucleoIdCache = null;
-}
-
+/** Busca direta — como núcleos agora são editáveis, não cacheamos entre requests. */
 async function nucleoIdByName(name: string): Promise<string> {
-  await loadNucleoCaches();
-  const id = nucleoIdCache!.get(name);
-  if (!id) {
-    invalidateNucleoCaches();
-    await loadNucleoCaches();
-    const retry = nucleoIdCache!.get(name);
-    if (!retry) throw new Error(`Núcleo "${name}" não encontrado`);
-    return retry;
-  }
-  return id;
+  const [row] = await db
+    .select({ id: nucleos.id })
+    .from(nucleos)
+    .where(eq(nucleos.nome, name))
+    .limit(1);
+  if (!row) throw new Error(`Núcleo "${name}" não encontrado`);
+  return row.id;
 }
 
-async function nucleoNameById(id: string): Promise<string> {
-  await loadNucleoCaches();
-  return nucleoNameCache!.get(id) ?? "Coordenacao";
+async function nucleoNameById(id: string): Promise<string | null> {
+  const [row] = await db
+    .select({ nome: nucleos.nome })
+    .from(nucleos)
+    .where(eq(nucleos.id, id))
+    .limit(1);
+  return row?.nome ?? null;
+}
+
+type DbVinculo =
+  | "Efetivo"
+  | "Consultor"
+  | "Consultor PSI"
+  | "Consultor Pilares II"
+  | "Suporte";
+
+/** Shim para linhas legadas ainda com "Consultor" — assume PSI como default. */
+function normalizeVinculo(v: DbVinculo): Servidor["tipoVinculo"] {
+  return v === "Consultor" ? "Consultor PSI" : v;
 }
 
 /** Serializa row do banco no shape do domínio (Servidor). */
@@ -57,7 +55,7 @@ async function toServidor(row: {
   matricula: string | null;
   email: string;
   cargo: string;
-  tipoVinculo: "Efetivo" | "Consultor" | "Suporte";
+  tipoVinculo: DbVinculo;
   especialidade: string | null;
   dataIngresso: string;
   status: "ativo" | "inativo" | "afastado";
@@ -66,8 +64,8 @@ async function toServidor(row: {
   nucleoPrincipalId: string | null;
 }): Promise<Servidor> {
   const nucleoNome = row.nucleoPrincipalId
-    ? await nucleoNameById(row.nucleoPrincipalId)
-    : "Coordenacao";
+    ? (await nucleoNameById(row.nucleoPrincipalId)) ?? ""
+    : "";
 
   return {
     id: row.id,
@@ -76,11 +74,11 @@ async function toServidor(row: {
     matricula: row.matricula ?? "",
     email: row.email,
     cargo: row.cargo,
-    tipoVinculo: row.tipoVinculo,
+    tipoVinculo: normalizeVinculo(row.tipoVinculo),
     especialidade: row.especialidade ?? "",
     dataIngresso: row.dataIngresso,
     status: row.status,
-    nucleoPrincipal: nucleoNome as Servidor["nucleoPrincipal"],
+    nucleoPrincipal: nucleoNome,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

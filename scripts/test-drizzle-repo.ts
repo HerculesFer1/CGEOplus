@@ -30,7 +30,7 @@ async function main() {
     email: testEmail,
     matricula: "",
     cargo: "Consultor Teste",
-    tipoVinculo: "Consultor",
+    tipoVinculo: "Consultor PSI",
     especialidade: "",
     dataIngresso: "2026-01-01",
     status: "ativo",
