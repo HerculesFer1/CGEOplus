@@ -59,8 +59,11 @@ async function toServidor(row: {
   cargo: string;
   tipoVinculo: DbVinculo;
   especialidade: string | null;
+  formacao: string | null;
   dataIngresso: string;
+  dataNascimento: string | null;
   status: "ativo" | "inativo" | "afastado";
+  avatarUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
   nucleoPrincipalId: string | null;
@@ -78,8 +81,11 @@ async function toServidor(row: {
     cargo: row.cargo,
     tipoVinculo: normalizeVinculo(row.tipoVinculo),
     especialidade: row.especialidade ?? "",
+    formacao: row.formacao ?? "",
     dataIngresso: row.dataIngresso,
+    dataNascimento: row.dataNascimento ?? "",
     status: row.status,
+    fotoUrl: row.avatarUrl ?? "",
     nucleoPrincipal: nucleo?.nome ?? "",
     nucleoCorTema: nucleo?.corTema ?? null,
     createdAt: row.createdAt.toISOString(),
@@ -98,8 +104,11 @@ function selectServidorFields() {
     cargo: servidores.cargo,
     tipoVinculo: servidores.tipoVinculo,
     especialidade: servidores.especialidade,
+    formacao: servidores.formacao,
     dataIngresso: servidores.dataIngresso,
+    dataNascimento: servidores.dataNascimento,
     status: servidores.status,
+    avatarUrl: servidores.avatarUrl,
     createdAt: servidores.createdAt,
     updatedAt: servidores.updatedAt,
     nucleoPrincipalId: servidorNucleo.nucleoId,
@@ -176,8 +185,11 @@ export class DrizzleServidorRepository implements ServidorRepository {
         cargo: data.cargo,
         tipoVinculo: data.tipoVinculo,
         especialidade: data.especialidade || null,
+        formacao: data.formacao || null,
         dataIngresso: data.dataIngresso,
+        dataNascimento: data.dataNascimento || null,
         status: data.status,
+        avatarUrl: data.fotoUrl || null,
       })
       .returning();
 
@@ -206,8 +218,14 @@ export class DrizzleServidorRepository implements ServidorRepository {
     if (patch.tipoVinculo !== undefined) set.tipoVinculo = patch.tipoVinculo;
     if (patch.especialidade !== undefined)
       set.especialidade = patch.especialidade || null;
+    if (patch.formacao !== undefined)
+      set.formacao = patch.formacao || null;
     if (patch.dataIngresso !== undefined) set.dataIngresso = patch.dataIngresso;
+    if (patch.dataNascimento !== undefined)
+      set.dataNascimento = patch.dataNascimento || null;
     if (patch.status !== undefined) set.status = patch.status;
+    if (patch.fotoUrl !== undefined)
+      set.avatarUrl = patch.fotoUrl || null;
 
     await db.update(servidores).set(set).where(eq(servidores.id, id));
 

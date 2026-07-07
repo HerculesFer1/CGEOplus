@@ -31,9 +31,20 @@ export const servidorCreateSchema = z.object({
     message: "Selecione o tipo de vínculo.",
   }),
   especialidade: z.string().trim().max(120).optional().or(z.literal("")),
+  formacao: z.string().trim().max(240).optional().or(z.literal("")),
   dataIngresso: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Data no formato AAAA-MM-DD."),
+  dataNascimento: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Data no formato AAAA-MM-DD.")
+    .optional()
+    .or(z.literal("")),
+  fotoUrl: z
+    .string()
+    .max(2_000_000, "Imagem muito grande — reduza antes de salvar.")
+    .optional()
+    .or(z.literal("")),
   status: z.enum(STATUS_SERVIDOR),
   nucleoPrincipal: z
     .string()

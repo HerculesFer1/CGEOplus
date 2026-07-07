@@ -95,7 +95,9 @@ export const servidores = pgTable(
     cargo: text("cargo").notNull(),
     tipoVinculo: vinculoEnum("tipo_vinculo").notNull(),
     especialidade: text("especialidade"),
+    formacao: text("formacao"),
     dataIngresso: date("data_ingresso").notNull(),
+    dataNascimento: date("data_nascimento"),
     status: statusServidorEnum("status").notNull().default("ativo"),
     avatarUrl: text("avatar_url"),
     createdAt: timestamp("created_at", { withTimezone: true })

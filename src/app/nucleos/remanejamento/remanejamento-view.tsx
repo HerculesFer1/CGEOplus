@@ -261,7 +261,7 @@ function UnassignedDropZone({
           {servidores.length}
         </span>
       </div>
-      <div className="mt-2 max-h-48 space-y-2 overflow-y-auto">
+      <div className="mt-2 h-[132px] space-y-2 overflow-y-auto pr-1">
         {servidores.length === 0 ? (
           <p className="py-3 text-center text-xs text-[var(--text-subtle)]">
             Solte aqui para desvincular.
