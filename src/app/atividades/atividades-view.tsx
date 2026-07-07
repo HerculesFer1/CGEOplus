@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { NucleoBadge } from "@/components/ui/nucleo-badge";
 import {
   Table,
   TableBody,
@@ -29,6 +30,7 @@ export interface AtividadeRow {
   ativo: boolean;
   nucleoId: string | null;
   nucleoNome: string | null;
+  nucleoCorTema: string | null;
 }
 
 interface NucleoOption {
@@ -49,17 +51,6 @@ const COMPLEX_LABEL: Record<AtividadeRow["complexidade"], string> = {
   N1: "N1 · Baixa",
   N2: "N2 · Média",
   N3: "N3 · Alta",
-};
-
-const NUCLEO_VARIANT: Record<
-  string,
-  "accent" | "success" | "warning" | "danger" | "default"
-> = {
-  "Gerência": "accent",
-  Licenciamento: "success",
-  CAR: "warning",
-  "Fiscalização": "danger",
-  Administrativo: "default",
 };
 
 interface Props {
@@ -176,11 +167,10 @@ export function AtividadesView({ atividades, nucleos }: Props) {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {a.nucleoNome && (
-                      <Badge variant={NUCLEO_VARIANT[a.nucleoNome] ?? "default"}>
-                        {a.nucleoNome}
-                      </Badge>
-                    )}
+                    <NucleoBadge
+                      nome={a.nucleoNome}
+                      cor={a.nucleoCorTema}
+                    />
                   </TableCell>
                   <TableCell className="text-sm text-[var(--text-muted)] max-w-md truncate">
                     {a.descricao ?? "—"}

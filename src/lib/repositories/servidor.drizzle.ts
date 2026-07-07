@@ -26,13 +26,15 @@ async function nucleoIdByName(name: string): Promise<string> {
   return row.id;
 }
 
-async function nucleoNameById(id: string): Promise<string | null> {
+async function nucleoNameById(
+  id: string,
+): Promise<{ nome: string; corTema: string | null } | null> {
   const [row] = await db
-    .select({ nome: nucleos.nome })
+    .select({ nome: nucleos.nome, corTema: nucleos.corTema })
     .from(nucleos)
     .where(eq(nucleos.id, id))
     .limit(1);
-  return row?.nome ?? null;
+  return row ?? null;
 }
 
 type DbVinculo =
@@ -63,9 +65,9 @@ async function toServidor(row: {
   updatedAt: Date;
   nucleoPrincipalId: string | null;
 }): Promise<Servidor> {
-  const nucleoNome = row.nucleoPrincipalId
-    ? (await nucleoNameById(row.nucleoPrincipalId)) ?? ""
-    : "";
+  const nucleo = row.nucleoPrincipalId
+    ? await nucleoNameById(row.nucleoPrincipalId)
+    : null;
 
   return {
     id: row.id,
@@ -78,7 +80,8 @@ async function toServidor(row: {
     especialidade: row.especialidade ?? "",
     dataIngresso: row.dataIngresso,
     status: row.status,
-    nucleoPrincipal: nucleoNome,
+    nucleoPrincipal: nucleo?.nome ?? "",
+    nucleoCorTema: nucleo?.corTema ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

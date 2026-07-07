@@ -176,6 +176,40 @@ export async function updateNucleoAction(input: unknown) {
   });
 }
 
+/** Move um servidor: encerra vínculo principal atual e (se houver destino) abre novo. */
+export async function moveServidorAction(
+  servidorId: string,
+  novoNucleoId: string | null,
+) {
+  return toResult(async () => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    await db
+      .update(servidorNucleo)
+      .set({ dataFim: today })
+      .where(
+        and(
+          eq(servidorNucleo.servidorId, servidorId),
+          eq(servidorNucleo.isPrincipal, true),
+          isNull(servidorNucleo.dataFim),
+        ),
+      );
+
+    if (novoNucleoId) {
+      await db.insert(servidorNucleo).values({
+        servidorId,
+        nucleoId: novoNucleoId,
+        isPrincipal: true,
+        dataInicio: today,
+        motivo: "remanejamento drag-and-drop",
+      });
+    }
+
+    revalidateAffected();
+    return { servidorId, novoNucleoId };
+  });
+}
+
 export async function toggleNucleoAtivoAction(id: string) {
   return toResult(async () => {
     const [current] = await db

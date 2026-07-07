@@ -157,7 +157,7 @@ export function NucleoFormDialog({
 
           <div className="space-y-2">
             <Label>Cor tema</Label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {PALETA.map((c) => (
                 <button
                   key={c.hex}
@@ -167,11 +167,11 @@ export function NucleoFormDialog({
                   }
                   aria-label={c.nome}
                   title={c.nome}
-                  className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--accent)] focus:ring-offset-[var(--elevated)] ${corSelecionada === c.hex ? "ring-2 ring-offset-2 ring-[var(--text)] ring-offset-[var(--elevated)]" : ""}`}
+                  className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full transition-transform hover:scale-110 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-[var(--accent)] focus:ring-offset-[var(--elevated)] ${corSelecionada === c.hex ? "ring-1 ring-offset-1 ring-[var(--text)] ring-offset-[var(--elevated)]" : ""}`}
                   style={{ backgroundColor: c.hex }}
                 >
                   {corSelecionada === c.hex && (
-                    <Check className="h-4 w-4 text-white" strokeWidth={3} />
+                    <Check className="h-2.5 w-2.5 text-white" strokeWidth={4} />
                   )}
                 </button>
               ))}

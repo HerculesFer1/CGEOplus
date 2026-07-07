@@ -18,6 +18,8 @@ export type Servidor = ServidorCreateInput & {
   id: string;
   createdAt: string;
   updatedAt: string;
+  /** Cor hex do núcleo principal atual (para renderizar badges). */
+  nucleoCorTema?: string | null;
 };
 
 export interface ServidorRepository {

@@ -43,6 +43,7 @@ export interface ProdutividadeServidor {
   apelido: string;
   nome: string;
   nucleoPrincipal: string | null;
+  nucleoCorTema: string | null;
   totalAnalises: number;
   finalizados: number;
   pendencias: number;
@@ -156,6 +157,7 @@ export class DashboardService {
         apelido: servidores.apelido,
         nome: servidores.nome,
         nucleoPrincipal: nucleos.nome,
+        nucleoCorTema: nucleos.corTema,
         totalAnalises: count(analises.id),
         finalizados: sql<number>`SUM(CASE WHEN ${analises.resultado} = 'Finalizado' THEN 1 ELSE 0 END)::int`,
         pendencias: sql<number>`SUM(CASE WHEN ${analises.resultado} = 'Analisado com pendencia' THEN 1 ELSE 0 END)::int`,
@@ -172,6 +174,7 @@ export class DashboardService {
         servidores.apelido,
         servidores.nome,
         nucleos.nome,
+        nucleos.corTema,
       )
       .orderBy(desc(count(analises.id)))
       .limit(limit);
@@ -181,6 +184,7 @@ export class DashboardService {
       apelido: r.apelido ?? "?",
       nome: r.nome,
       nucleoPrincipal: r.nucleoPrincipal,
+      nucleoCorTema: r.nucleoCorTema,
       totalAnalises: Number(r.totalAnalises),
       finalizados: Number(r.finalizados),
       pendencias: Number(r.pendencias),

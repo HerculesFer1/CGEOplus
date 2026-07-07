@@ -14,6 +14,7 @@ import {
 } from "recharts";
 
 import { Badge } from "@/components/ui/badge";
+import { NucleoBadge } from "@/components/ui/nucleo-badge";
 import {
   Table,
   TableBody,
@@ -29,14 +30,6 @@ import type {
   DistribuicaoSistema,
   ProdutividadeServidor,
 } from "@/lib/services/dashboard.service";
-
-const NUCLEO_COLORS: Record<string, "accent" | "success" | "warning" | "danger" | "default"> = {
-  "Gerência": "accent",
-  Licenciamento: "success",
-  CAR: "warning",
-  "Fiscalização": "danger",
-  Administrativo: "default",
-};
 
 interface Props {
   servidores: ProdutividadeServidor[];
@@ -178,11 +171,10 @@ export function ProdutividadeView({ servidores, mensal }: Props) {
                     <p className="text-xs text-[var(--text-muted)]">{s.nome}</p>
                   </TableCell>
                   <TableCell>
-                    {s.nucleoPrincipal && (
-                      <Badge variant={NUCLEO_COLORS[s.nucleoPrincipal] ?? "default"}>
-                        {s.nucleoPrincipal}
-                      </Badge>
-                    )}
+                    <NucleoBadge
+                      nome={s.nucleoPrincipal}
+                      cor={s.nucleoCorTema}
+                    />
                   </TableCell>
                   <TableCell className="text-right font-mono">
                     {formatNumber(s.finalizados)}

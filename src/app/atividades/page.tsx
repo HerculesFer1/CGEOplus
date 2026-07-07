@@ -20,6 +20,7 @@ export default async function AtividadesPage() {
         ativo: atividades.ativo,
         nucleoId: atividades.nucleoId,
         nucleoNome: nucleos.nome,
+        nucleoCorTema: nucleos.corTema,
       })
       .from(atividades)
       .leftJoin(nucleos, eq(nucleos.id, atividades.nucleoId))

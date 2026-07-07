@@ -2,7 +2,8 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, Layers, Pencil, Plus, Power } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, ArrowLeftRight, Layers, Pencil, Plus, Power } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -95,10 +96,18 @@ export function NucleosView({ nucleos, servidores }: Props) {
             funcional.
           </p>
         </div>
-        <Button onClick={handleNew} className="gap-2">
-          <Plus className="h-4 w-4" strokeWidth={1.75} />
-          Novo núcleo
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" className="gap-2">
+            <Link href="/nucleos/remanejamento">
+              <ArrowLeftRight className="h-4 w-4" strokeWidth={1.75} />
+              Remanejar equipe
+            </Link>
+          </Button>
+          <Button onClick={handleNew} className="gap-2">
+            <Plus className="h-4 w-4" strokeWidth={1.75} />
+            Novo núcleo
+          </Button>
+        </div>
       </motion.div>
 
       <motion.div

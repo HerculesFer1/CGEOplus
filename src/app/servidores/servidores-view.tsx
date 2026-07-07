@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { NucleoBadge } from "@/components/ui/nucleo-badge";
 import {
   Table,
   TableBody,
@@ -39,14 +40,6 @@ interface Props {
   initialData: Servidor[];
   nucleosDisponiveis: string[];
 }
-
-const NUCLEO_COLORS: Record<string, "accent" | "success" | "warning" | "danger" | "default"> = {
-  "Gerência": "accent",
-  Licenciamento: "success",
-  CAR: "warning",
-  "Fiscalização": "danger",
-  Administrativo: "default",
-};
 
 const VINCULO_COLORS: Record<string, "accent" | "outline" | "default"> = {
   Efetivo: "accent",
@@ -170,9 +163,10 @@ export function ServidoresView({ initialData, nucleosDisponiveis }: Props) {
                   </TableCell>
                   <TableCell className="text-sm">{s.apelido}</TableCell>
                   <TableCell>
-                    <Badge variant={NUCLEO_COLORS[s.nucleoPrincipal] ?? "default"}>
-                      {s.nucleoPrincipal}
-                    </Badge>
+                    <NucleoBadge
+                      nome={s.nucleoPrincipal}
+                      cor={s.nucleoCorTema}
+                    />
                   </TableCell>
                   <TableCell>
                     <Badge variant={VINCULO_COLORS[s.tipoVinculo] ?? "default"}>
