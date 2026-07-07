@@ -133,7 +133,12 @@ export function RemanejamentoView({ nucleos, servidoresIniciais }: Props) {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div
+          className="grid gap-4 pb-4"
+          style={{
+            gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
+          }}
+        >
           {columns.map((col) => (
             <ColumnBoard
               key={col.id}
@@ -165,7 +170,7 @@ function ColumnBoard({
   return (
     <div
       ref={setNodeRef}
-      className={`flex w-72 shrink-0 flex-col rounded-2xl border bg-[var(--elevated)] transition-colors ${isOver ? "border-[var(--accent)] shadow-[var(--shadow-md)]" : ""} ${isUnassigned ? "border-dashed" : ""}`}
+      className={`flex min-w-0 flex-col rounded-2xl border bg-[var(--elevated)] transition-colors ${isOver ? "border-[var(--accent)] shadow-[var(--shadow-md)]" : ""} ${isUnassigned ? "border-dashed" : ""}`}
     >
       <div className="border-b p-3">
         <div className="flex items-center gap-2">
