@@ -261,14 +261,19 @@ function UnassignedDropZone({
           {servidores.length}
         </span>
       </div>
-      <div className="mt-2 h-[132px] space-y-2 overflow-y-auto pr-1">
+      <div
+        className="mt-2 h-[62px] snap-y snap-mandatory overflow-y-auto pr-1 [scrollbar-width:thin]"
+        style={{ scrollBehavior: "smooth" }}
+      >
         {servidores.length === 0 ? (
           <p className="py-3 text-center text-xs text-[var(--text-subtle)]">
             Solte aqui para desvincular.
           </p>
         ) : (
           servidores.map((s) => (
-            <DraggableCard key={s.id} s={s} onContext={onContext} />
+            <div key={s.id} className="snap-start py-0.5">
+              <DraggableCard s={s} onContext={onContext} />
+            </div>
           ))
         )}
       </div>
