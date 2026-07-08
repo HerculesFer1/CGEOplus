@@ -42,6 +42,7 @@ type DbVinculo =
   | "Consultor"
   | "Consultor PSI"
   | "Consultor Pilares II"
+  | "Terceirizado"
   | "Suporte";
 
 /** Shim para linhas legadas ainda com "Consultor" — assume PSI como default. */
