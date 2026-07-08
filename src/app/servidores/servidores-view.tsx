@@ -2,22 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { motion } from "framer-motion";
-import { Plus, Search, Pencil, Trash2, UserPlus } from "lucide-react";
+import { Search, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { NucleoBadge } from "@/components/ui/nucleo-badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableEmpty,
-} from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,10 +19,16 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { fadeSlideUp, staggerContainer } from "@/lib/design/motion";
-import { formatDate } from "@/lib/utils";
+import { TIPO_VINCULO } from "@/lib/validators/servidor";
 import type { Servidor } from "@/lib/services/servidores.service";
 
+import { displayVinculo } from "./vinculo-display";
+
+const GERENCIA_LABEL = "Gerência";
+
 import { ServidorFormDialog } from "./servidor-form-dialog";
+import { ServidorMiniCard } from "./servidor-mini-card";
+import { ServidorDetailDialog } from "./servidor-detail-dialog";
 import { deleteServidorAction } from "./actions";
 
 interface Props {
@@ -41,18 +36,73 @@ interface Props {
   nucleosDisponiveis: string[];
 }
 
-const VINCULO_COLORS: Record<string, "accent" | "outline" | "default"> = {
-  Efetivo: "accent",
-  "Consultor PSI": "outline",
-  "Consultor Pilares II": "outline",
-  Consultor: "outline",
-  Suporte: "default",
-};
+interface Group {
+  key: string;
+  label: string;
+  cor?: string | null;
+  servidores: Servidor[];
+}
+
+function byApelido(a: Servidor, b: Servidor) {
+  return (a.apelido || a.nome).localeCompare(b.apelido || b.nome, "pt-BR");
+}
+
+function groupServidores(list: Servidor[]): Group[] {
+  const gerencia: Servidor[] = [];
+  const porVinculo = new Map<string, Servidor[]>();
+
+  for (const s of list) {
+    if (s.nucleoPrincipal === GERENCIA_LABEL) {
+      gerencia.push(s);
+      continue;
+    }
+    const key = s.tipoVinculo || "Outros";
+    if (!porVinculo.has(key)) porVinculo.set(key, []);
+    porVinculo.get(key)!.push(s);
+  }
+
+  const groups: Group[] = [];
+
+  if (gerencia.length > 0) {
+    groups.push({
+      key: `nucleo:${GERENCIA_LABEL}`,
+      label: GERENCIA_LABEL,
+      cor: gerencia[0].nucleoCorTema,
+      servidores: gerencia.sort(byApelido),
+    });
+  }
+
+  for (const vinculo of TIPO_VINCULO) {
+    const membros = porVinculo.get(vinculo);
+    if (!membros?.length) continue;
+    groups.push({
+      key: `vinculo:${vinculo}`,
+      label: displayVinculo(vinculo),
+      servidores: membros.sort(byApelido),
+    });
+    porVinculo.delete(vinculo);
+  }
+
+  // Vínculos que não constam na ordem canônica — mantém no fim, alfabético.
+  const restantes = [...porVinculo.entries()].sort(([a], [b]) =>
+    a.localeCompare(b, "pt-BR"),
+  );
+  for (const [vinculo, membros] of restantes) {
+    groups.push({
+      key: `vinculo:${vinculo}`,
+      label: displayVinculo(vinculo),
+      servidores: membros.sort(byApelido),
+    });
+  }
+
+  return groups;
+}
 
 export function ServidoresView({ initialData, nucleosDisponiveis }: Props) {
   const [search, setSearch] = useState("");
   const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState<Servidor | null>(null);
+  const [viewing, setViewing] = useState<Servidor | null>(null);
   const [deleting, setDeleting] = useState<Servidor | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -69,7 +119,10 @@ export function ServidoresView({ initialData, nucleosDisponiveis }: Props) {
     );
   }, [initialData, search]);
 
+  const groups = useMemo(() => groupServidores(filtered), [filtered]);
+
   function handleEdit(s: Servidor) {
+    setViewing(null);
     setEditing(s);
     setOpenForm(true);
   }
@@ -79,7 +132,12 @@ export function ServidoresView({ initialData, nucleosDisponiveis }: Props) {
     setOpenForm(true);
   }
 
-  function handleDelete() {
+  function handleAskDelete(s: Servidor) {
+    setViewing(null);
+    setDeleting(s);
+  }
+
+  function handleConfirmDelete() {
     if (!deleting) return;
     startTransition(async () => {
       const res = await deleteServidorAction(deleting.id);
@@ -109,8 +167,8 @@ export function ServidoresView({ initialData, nucleosDisponiveis }: Props) {
             Servidores
           </h1>
           <p className="mt-2 text-sm text-[var(--text-muted)]">
-            {initialData.length} colaboradores ativos · organizados por núcleo
-            principal
+            {initialData.length} colaboradores ativos · Gerência em destaque,
+            demais agrupados por vínculo
           </p>
         </div>
         <Button onClick={handleNew} className="gap-2">
@@ -129,79 +187,51 @@ export function ServidoresView({ initialData, nucleosDisponiveis }: Props) {
         />
       </motion.div>
 
-      <motion.div variants={fadeSlideUp}>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nome</TableHead>
-              <TableHead>Apelido</TableHead>
-              <TableHead>Núcleo</TableHead>
-              <TableHead>Vínculo</TableHead>
-              <TableHead>Ingresso</TableHead>
-              <TableHead className="w-[80px] text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 ? (
-              <TableRow>
-                <TableEmpty colSpan={6}>
-                  {search
-                    ? `Nenhum servidor encontrado para "${search}".`
-                    : "Nenhum servidor cadastrado ainda."}
-                </TableEmpty>
-              </TableRow>
-            ) : (
-              filtered.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{s.nome}</p>
-                      <p className="text-xs text-[var(--text-muted)]">
-                        {s.email}
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm">{s.apelido}</TableCell>
-                  <TableCell>
-                    <NucleoBadge
-                      nome={s.nucleoPrincipal}
-                      cor={s.nucleoCorTema}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={VINCULO_COLORS[s.tipoVinculo] ?? "default"}>
-                      {s.tipoVinculo}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-[var(--text-muted)]">
-                    {formatDate(s.dataIngresso)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="inline-flex gap-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleEdit(s)}
-                        aria-label={`Editar ${s.nome}`}
-                      >
-                        <Pencil className="h-4 w-4" strokeWidth={1.75} />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setDeleting(s)}
-                        aria-label={`Remover ${s.nome}`}
-                      >
-                        <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </motion.div>
+      {groups.length === 0 ? (
+        <motion.p
+          variants={fadeSlideUp}
+          className="rounded-2xl border bg-[var(--elevated)] p-8 text-center text-sm text-[var(--text-muted)]"
+        >
+          {search
+            ? `Nenhum servidor encontrado para "${search}".`
+            : "Nenhum servidor cadastrado ainda."}
+        </motion.p>
+      ) : (
+        <motion.div variants={fadeSlideUp} className="space-y-8">
+          {groups.map((group) => (
+            <section key={group.key} className="space-y-3">
+              <div className="flex items-baseline justify-between border-b pb-2">
+                <h2
+                  className="text-sm font-semibold uppercase tracking-wide"
+                  style={group.cor ? { color: group.cor } : undefined}
+                >
+                  {group.label}
+                </h2>
+                <span className="text-xs text-[var(--text-muted)]">
+                  {group.servidores.length}{" "}
+                  {group.servidores.length === 1 ? "membro" : "membros"}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {group.servidores.map((s) => (
+                  <ServidorMiniCard
+                    key={s.id}
+                    servidor={s}
+                    onClick={() => setViewing(s)}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
+        </motion.div>
+      )}
+
+      <ServidorDetailDialog
+        servidor={viewing}
+        onOpenChange={(open) => !open && setViewing(null)}
+        onEdit={handleEdit}
+        onDelete={handleAskDelete}
+      />
 
       <ServidorFormDialog
         open={openForm}
@@ -228,7 +258,10 @@ export function ServidoresView({ initialData, nucleosDisponiveis }: Props) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={isPending}>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={isPending}
+            >
               {isPending ? "Removendo..." : "Remover"}
             </AlertDialogAction>
           </AlertDialogFooter>

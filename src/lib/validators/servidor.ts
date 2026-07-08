@@ -9,6 +9,7 @@ export const TIPO_VINCULO = [
   "Efetivo",
   "Consultor PSI",
   "Consultor Pilares II",
+  "Terceirizado",
   "Suporte",
 ] as const;
 export const STATUS_SERVIDOR = ["ativo", "inativo", "afastado"] as const;

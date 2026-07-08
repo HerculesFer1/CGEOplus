@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Select,
   SelectContent,
@@ -33,6 +34,7 @@ import {
 import type { Servidor } from "@/lib/services/servidores.service";
 
 import { createServidorAction, updateServidorAction } from "./actions";
+import { displayVinculo } from "./vinculo-display";
 
 interface Props {
   open: boolean;
@@ -273,7 +275,7 @@ export function ServidorFormDialog({
               <SelectContent>
                 {TIPO_VINCULO.map((v) => (
                   <SelectItem key={v} value={v}>
-                    {v}
+                    {displayVinculo(v)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -314,11 +316,25 @@ export function ServidorFormDialog({
           </Field>
 
           <Field label="Data de ingresso" error={errors.dataIngresso?.message}>
-            <Input type="date" {...form.register("dataIngresso")} />
+            <DatePicker
+              value={form.watch("dataIngresso")}
+              onChange={(v) =>
+                form.setValue("dataIngresso", v, { shouldValidate: true })
+              }
+              placeholder="Selecionar data"
+              ariaLabel="Data de ingresso"
+            />
           </Field>
 
           <Field label="Data de nascimento" error={errors.dataNascimento?.message}>
-            <Input type="date" {...form.register("dataNascimento")} />
+            <DatePicker
+              value={form.watch("dataNascimento") ?? ""}
+              onChange={(v) =>
+                form.setValue("dataNascimento", v, { shouldValidate: true })
+              }
+              placeholder="Selecionar data"
+              ariaLabel="Data de nascimento"
+            />
           </Field>
 
           <DialogFooter className="sm:col-span-2 mt-2">

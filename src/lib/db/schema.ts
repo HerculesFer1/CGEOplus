@@ -35,6 +35,7 @@ export const vinculoEnum = pgEnum("vinculo", [
   "Consultor",
   "Consultor PSI",
   "Consultor Pilares II",
+  "Terceirizado",
   "Suporte",
 ]);
 
