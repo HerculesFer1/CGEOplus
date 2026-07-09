@@ -10,6 +10,7 @@ import {
   FileText,
   Activity,
   FileBarChart,
+  Target,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -33,6 +34,12 @@ const NAV_GROUPS = [
       { href: "/nucleos", label: "Núcleos", icon: Layers },
       { href: "/atividades", label: "Atividades", icon: ClipboardList },
       { href: "/processos", label: "Processos", icon: FileText },
+    ],
+  },
+  {
+    label: "Programas",
+    items: [
+      { href: "/monitoramento", label: "Monitoramento", icon: Target },
     ],
   },
 ];

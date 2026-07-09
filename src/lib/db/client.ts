@@ -17,9 +17,10 @@ if (!connectionString) {
 
 const queryClient = postgres(connectionString, {
   prepare: false,
-  max: 1,
-  idle_timeout: 20,
+  max: 5,
+  idle_timeout: 60,
   connect_timeout: 10,
+  max_lifetime: 60 * 30, // 30 min — força reciclagem antes do pooler cortar
 });
 
 export const db = drizzle(queryClient, { schema });

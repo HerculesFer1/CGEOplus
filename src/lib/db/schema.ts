@@ -284,3 +284,10 @@ export const atividadesRelations = relations(atividades, ({ one, many }) => ({
   }),
   analises: many(analises),
 }));
+
+/* ==========================================================================
+   MONITORAMENTO DE PROGRAMAS (PSI, PILARES II, ...)
+   Reexporta tudo do módulo separado para o drizzle-kit ver.
+   ========================================================================== */
+
+export * from "./monitoramento";

@@ -8,6 +8,13 @@
       "when": 1783015606880,
       "tag": "0000_small_gabe_jones",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783597951923,
+      "tag": "0003_add_monitoramento",
+      "breakpoints": true
     }
   ]
 }
