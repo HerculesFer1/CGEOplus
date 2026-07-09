@@ -11,7 +11,10 @@ export async function GET(request: NextRequest) {
 
   try {
     const { buffer, filename } = await gerarRelatorio(sigla);
-    return new Response(buffer, {
+    // Buffer é Uint8Array em runtime, mas o tipo do Response requer BodyInit;
+    // "unwrap" para o tipo compatível.
+    const body = new Uint8Array(buffer);
+    return new Response(body, {
       status: 200,
       headers: {
         "Content-Type":
