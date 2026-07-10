@@ -72,6 +72,6 @@
     "vitest": "^4.1.9"
   },
   "optionalDependencies": {
-    "@rolldown/binding-win32-x64-msvc": "1.1.4"
+    "@rolldown/binding-win32-x64-msvc": "^1.1.5"
   }
 }
