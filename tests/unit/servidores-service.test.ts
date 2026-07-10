@@ -47,7 +47,7 @@ const validInput: ServidorCreateInput = {
   apelido: "Marco",
   email: "marco@semarh.gov.br",
   cargo: "Consultor PSI",
-  tipoVinculo: "Consultor",
+  tipoVinculo: "Consultor PSI",
   dataIngresso: "2015-09-01",
   status: "ativo",
   nucleoPrincipal: "CAR",

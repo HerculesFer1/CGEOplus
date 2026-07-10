@@ -8,7 +8,7 @@ describe("servidorCreateSchema", () => {
     email: "MARCO@semarh.gov.br",
     matricula: "",
     cargo: "Consultor PSI/Esp. Geoprocessamento",
-    tipoVinculo: "Consultor" as const,
+    tipoVinculo: "Consultor PSI" as const,
     especialidade: "",
     dataIngresso: "2015-09-01",
     status: "ativo" as const,
@@ -47,7 +47,7 @@ describe("servidorCreateSchema", () => {
     expect(() =>
       servidorCreateSchema.parse({
         ...valid,
-        tipoVinculo: "Terceirizado" as unknown as typeof valid.tipoVinculo,
+        tipoVinculo: "Consultor" as unknown as typeof valid.tipoVinculo,
       }),
     ).toThrow();
   });
