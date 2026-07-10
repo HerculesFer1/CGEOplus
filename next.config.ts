@@ -2,6 +2,16 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /**
+   * Server Actions do módulo /car recebem o CSV bruto do SICAR (~40MB, 334k linhas).
+   * Default do Next é 1MB — subimos para 100MB para acomodar as importações mensais.
+   */
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "100mb",
+    },
+  },
+
+  /**
    * Redirects de singular → plural.
    * Corrige URLs digitadas manualmente ou favoritos antigos que
    * usam o nome do módulo no singular.

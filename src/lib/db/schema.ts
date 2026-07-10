@@ -291,3 +291,9 @@ export const atividadesRelations = relations(atividades, ({ one, many }) => ({
    ========================================================================== */
 
 export * from "./monitoramento";
+
+/* ==========================================================================
+   CAR — Análise de Passivo do Cadastro Ambiental Rural
+   ========================================================================== */
+
+export * from "./car";

@@ -113,8 +113,13 @@ export function MonitoramentoView({
     >
       <motion.div variants={fadeSlideUp} className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Monitoramento de programas
+          <p className="text-sm text-[var(--text-muted)]">
+            Monitoramento{programaInfo?.orgao ? ` · ${programaInfo.orgao}` : ""}
+          </p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">
+            {programaInfo
+              ? `${programaInfo.sigla} — ${programaInfo.nome}`
+              : "Monitoramento de programas"}
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-[var(--text-muted)]">
             Consolidado de títulos, CAR emitidos, famílias atendidas e validações
@@ -140,26 +145,6 @@ export function MonitoramentoView({
       <motion.div variants={fadeSlideUp}>
         <Card>
           <CardContent className="flex flex-wrap items-center gap-4 p-4">
-            <div className="min-w-[220px] flex-1">
-              <label className="text-xs font-medium tracking-wide text-[var(--text-muted)]">
-                Programa
-              </label>
-              <Select
-                value={programaSelecionada}
-                onValueChange={(v) => updateQS({ programa: v, intervalo: undefined })}
-              >
-                <SelectTrigger className="mt-1 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {programas.map((p) => (
-                    <SelectItem key={p.sigla} value={p.sigla}>
-                      {p.sigla} — {p.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="min-w-[240px] flex-1">
               <label className="text-xs font-medium tracking-wide text-[var(--text-muted)]">
                 Intervalo (opcional)
@@ -181,12 +166,6 @@ export function MonitoramentoView({
                 </SelectContent>
               </Select>
             </div>
-            {programaInfo?.orgao && (
-              <div className="text-xs text-[var(--text-muted)]">
-                <p className="tracking-wide">Órgão</p>
-                <p className="mt-1 font-medium text-[var(--text)]">{programaInfo.orgao}</p>
-              </div>
-            )}
           </CardContent>
         </Card>
       </motion.div>

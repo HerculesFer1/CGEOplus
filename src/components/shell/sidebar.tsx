@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
   Users,
@@ -11,6 +12,8 @@ import {
   Activity,
   FileBarChart,
   Target,
+  TreePine,
+  Folders,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -18,7 +21,19 @@ import { Logo } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
 import { spring } from "@/lib/design/motion";
 
-const NAV_GROUPS = [
+interface NavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  children?: Array<{ href: string; label: string }>;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
   {
     label: "Visão Geral",
     items: [
@@ -37,9 +52,18 @@ const NAV_GROUPS = [
     ],
   },
   {
-    label: "Programas",
+    label: "Monitoramento",
     items: [
-      { href: "/monitoramento", label: "Monitoramento", icon: Target },
+      {
+        href: "/monitoramento",
+        label: "Projetos",
+        icon: Folders,
+        children: [
+          { href: "/monitoramento?programa=PILARES II", label: "Pilares II" },
+          { href: "/monitoramento?programa=PSI", label: "PSI" },
+        ],
+      },
+      { href: "/car", label: "SICAR / CAR", icon: TreePine },
     ],
   },
 ];
@@ -67,39 +91,9 @@ export function Sidebar() {
               {group.label}
             </p>
             <ul className="space-y-0.5">
-              {group.items.map((item) => {
-                const active =
-                  pathname === item.href ||
-                  (item.href !== "/dashboard" &&
-                    pathname?.startsWith(item.href));
-                const Icon = item.icon;
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        "relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
-                        active
-                          ? "text-[var(--text)]"
-                          : "text-[var(--text-muted)] hover:text-[var(--text)]",
-                      )}
-                    >
-                      {active && (
-                        <motion.span
-                          layoutId="sidebar-active"
-                          transition={spring.snappy}
-                          className="absolute inset-0 rounded-lg bg-[var(--elevated)] shadow-[var(--shadow-sm)]"
-                        />
-                      )}
-                      <Icon
-                        className="relative h-4 w-4"
-                        strokeWidth={1.75}
-                      />
-                      <span className="relative">{item.label}</span>
-                    </Link>
-                  </li>
-                );
-              })}
+              {group.items.map((item) => (
+                <NavItemRow key={item.href} item={item} pathname={pathname} />
+              ))}
             </ul>
           </div>
         ))}
@@ -109,5 +103,79 @@ export function Sidebar() {
         CGEO+ · v0.1
       </div>
     </aside>
+  );
+}
+
+function NavItemRow({
+  item,
+  pathname,
+}: {
+  item: NavItem;
+  pathname: string | null;
+}) {
+  const active =
+    pathname === item.href ||
+    (item.href !== "/dashboard" && pathname?.startsWith(item.href));
+  const Icon = item.icon;
+  const showChildren = item.children && item.children.length > 0;
+
+  return (
+    <li>
+      <Link
+        href={item.href}
+        className={cn(
+          "relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
+          active
+            ? "text-[var(--text)]"
+            : "text-[var(--text-muted)] hover:text-[var(--text)]",
+        )}
+      >
+        {active && (
+          <motion.span
+            layoutId="sidebar-active"
+            transition={spring.snappy}
+            className="absolute inset-0 rounded-lg bg-[var(--elevated)] shadow-[var(--shadow-sm)]"
+          />
+        )}
+        <Icon className="relative h-4 w-4" strokeWidth={1.75} />
+        <span className="relative">{item.label}</span>
+      </Link>
+      {showChildren && (
+        <motion.ul
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          transition={spring.snappy}
+          className="ml-6 mt-0.5 space-y-0.5 border-l border-[var(--border)] pl-3"
+        >
+          {item.children!.map((c) => {
+            // Match query-string children (?programa=X) against current URL
+            const [, cQuery = ""] = c.href.split("?");
+            const cParams = new URLSearchParams(cQuery);
+            const isChildActive =
+              typeof window !== "undefined" &&
+              pathname === item.href &&
+              [...cParams.entries()].every(
+                ([k, v]) =>
+                  new URLSearchParams(window.location.search).get(k) === v,
+              );
+            return (
+              <li key={c.href}>
+                <Link
+                  href={c.href}
+                  className={cn(
+                    "block rounded-md px-3 py-1.5 text-[13px] transition-colors",
+                    isChildActive
+                      ? "bg-[var(--surface)] text-[var(--text)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text)]",
+                  )}
+                >
+                  {c.label}
+                </Link>
+              </li>
+            );
+          })}
+        </motion.ul>
+      )}
+    </li>
   );
 }
