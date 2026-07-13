@@ -6,12 +6,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
   ArrowLeft,
-  ArrowRight,
   CheckCircle2,
   FileSpreadsheet,
   RefreshCw,
   Sparkles,
-  Trophy,
   Upload,
   X,
 } from "lucide-react";
@@ -119,9 +117,11 @@ const MESES = [
 interface Props {
   anoDefault: number;
   mesDefault: number;
+  /** Quando embutido em um wrapper (tabs), esconde header e atalho. */
+  hideHeader?: boolean;
 }
 
-export function ImportarCarView({ anoDefault, mesDefault }: Props) {
+export function ImportarCarView({ anoDefault, mesDefault, hideHeader = false }: Props) {
   const [ano, setAno] = useState<number>(anoDefault);
   const [mes, setMes] = useState<number>(mesDefault);
   const [file, setFile] = useState<File | null>(null);
@@ -273,45 +273,24 @@ export function ImportarCarView({ anoDefault, mesDefault }: Props) {
       variants={staggerContainer}
       className="space-y-6"
     >
-      <motion.div variants={fadeSlideUp}>
-        <Link
-          href="/car"
-          className="inline-flex items-center gap-1 text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar ao painel CAR
-        </Link>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight">
-          Importar relatório do SICAR
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm text-[var(--text-muted)]">
-          Envie o CSV bruto do SICAR (<code className="rounded bg-[var(--surface)] px-1.5 py-0.5 text-xs">Relatorio-Buscar-Imoveis.csv</code>).
-          O sistema valida colunas, classifica as fases contra o mapa persistente e mostra um preview antes de gravar.
-        </p>
-      </motion.div>
-
-      {/* Atalho pra importar o ranking nacional (arquivo separado) */}
-      <motion.div variants={fadeSlideUp}>
-        <Link href="/car/importar/ranking" className="block">
-          <Card className="transition-colors hover:border-[#FF9F0A]/50">
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className="rounded-lg bg-[#FF9F0A]/10 p-2">
-                <Trophy className="h-5 w-5" style={{ color: "#FF9F0A" }} strokeWidth={1.75} />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">
-                  Também importar o ranking nacional
-                </p>
-                <p className="text-xs text-[var(--text-muted)]">
-                  Planilha <code className="rounded bg-[var(--surface)] px-1 text-[10px]">UF · Total do Tema</code>{" "}
-                  usada no benchmarking do painel.
-                </p>
-              </div>
-              <ArrowRight className="h-4 w-4 text-[var(--text-muted)]" strokeWidth={1.75} />
-            </CardContent>
-          </Card>
-        </Link>
-      </motion.div>
+      {!hideHeader && (
+        <motion.div variants={fadeSlideUp}>
+          <Link
+            href="/car"
+            className="inline-flex items-center gap-1 text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Voltar ao painel CAR
+          </Link>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight">
+            Importar relatório do SICAR
+          </h1>
+          <p className="mt-2 max-w-3xl text-sm text-[var(--text-muted)]">
+            Envie o CSV bruto do SICAR (<code className="rounded bg-[var(--surface)] px-1.5 py-0.5 text-xs">Relatorio-Buscar-Imoveis.csv</code>).
+            O sistema valida colunas, classifica as fases contra o mapa persistente e mostra um preview antes de gravar.
+          </p>
+        </motion.div>
+      )}
 
       {/* Período — sempre visível, define ano/mês do dataset */}
       <motion.div variants={fadeSlideUp}>

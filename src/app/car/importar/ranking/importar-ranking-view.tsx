@@ -74,9 +74,10 @@ async function postJson<T>(body: unknown): Promise<ActionResult<T>> {
 interface Props {
   anoDefault: number;
   mesDefault: number;
+  hideHeader?: boolean;
 }
 
-export function ImportarRankingView({ anoDefault, mesDefault }: Props) {
+export function ImportarRankingView({ anoDefault, mesDefault, hideHeader = false }: Props) {
   const [ano, setAno] = useState<number>(anoDefault);
   const [mes, setMes] = useState<number>(mesDefault);
   const [file, setFile] = useState<File | null>(null);
@@ -173,29 +174,31 @@ export function ImportarRankingView({ anoDefault, mesDefault }: Props) {
       variants={staggerContainer}
       className="space-y-6"
     >
-      <motion.div variants={fadeSlideUp}>
-        <Link
-          href="/car"
-          className="inline-flex items-center gap-1 text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar ao painel CAR
-        </Link>
-        <div className="mt-3 flex items-center gap-3">
-          <Trophy className="h-7 w-7" style={{ color: SICAR }} strokeWidth={1.5} />
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Importar ranking nacional
-          </h1>
-        </div>
-        <p className="mt-2 max-w-3xl text-sm text-[var(--text-muted)]">
-          Envie a planilha com análises concluídas por UF{" "}
-          (<code className="rounded bg-[var(--surface)] px-1.5 py-0.5 text-xs">UF | Total do Tema</code>).
-          Alimenta o benchmarking do painel — posicionamento do Piauí vs. Brasil e Nordeste.
-        </p>
-        <p className="mt-1 text-xs text-[var(--text-muted)]">
-          Tema atual: <strong className="text-[var(--text)]">Regularidade ambiental concluída</strong>.
-        </p>
-      </motion.div>
+      {!hideHeader && (
+        <motion.div variants={fadeSlideUp}>
+          <Link
+            href="/car"
+            className="inline-flex items-center gap-1 text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Voltar ao painel CAR
+          </Link>
+          <div className="mt-3 flex items-center gap-3">
+            <Trophy className="h-7 w-7" style={{ color: SICAR }} strokeWidth={1.5} />
+            <h1 className="text-3xl font-semibold tracking-tight">
+              Importar ranking nacional
+            </h1>
+          </div>
+          <p className="mt-2 max-w-3xl text-sm text-[var(--text-muted)]">
+            Envie a planilha com análises concluídas por UF{" "}
+            (<code className="rounded bg-[var(--surface)] px-1.5 py-0.5 text-xs">UF | Total do Tema</code>).
+            Alimenta o benchmarking do painel — posicionamento do Piauí vs. Brasil e Nordeste.
+          </p>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            Tema atual: <strong className="text-[var(--text)]">Análise concluída</strong>.
+          </p>
+        </motion.div>
+      )}
 
       <motion.div variants={fadeSlideUp}>
         <Card>

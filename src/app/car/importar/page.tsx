@@ -1,13 +1,19 @@
-import { ImportarCarView } from "./importar-view";
+import { ImportarTabs } from "./importar-tabs";
 
 export const dynamic = "force-dynamic";
 
-export default function Page() {
+interface PageProps {
+  searchParams: Promise<{ aba?: string }>;
+}
+
+export default async function Page({ searchParams }: PageProps) {
+  const { aba } = await searchParams;
   const hoje = new Date();
   return (
-    <ImportarCarView
+    <ImportarTabs
       anoDefault={hoje.getUTCFullYear()}
       mesDefault={hoje.getUTCMonth() + 1}
+      abaDefault={aba === "ranking" ? "ranking" : "mensal"}
     />
   );
 }

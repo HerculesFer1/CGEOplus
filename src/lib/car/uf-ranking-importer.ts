@@ -19,8 +19,8 @@ import {
   type UfCode,
 } from "./uf-ranking-parser";
 
-export const DEFAULT_TEMA_SLUG = "regularidade_ambiental_concluida";
-export const DEFAULT_TEMA_ROTULO = "Regularidade ambiental concluída";
+export const DEFAULT_TEMA_SLUG = "analise_concluida";
+export const DEFAULT_TEMA_ROTULO = "Análise concluída";
 
 export interface UfRankingPreview {
   ano: number;

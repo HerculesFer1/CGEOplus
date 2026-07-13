@@ -1,13 +1,7 @@
-import { ImportarRankingView } from "./importar-ranking-view";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 export default function Page() {
-  const hoje = new Date();
-  return (
-    <ImportarRankingView
-      anoDefault={hoje.getUTCFullYear()}
-      mesDefault={hoje.getUTCMonth() + 1}
-    />
-  );
+  redirect("/car/importar?aba=ranking");
 }

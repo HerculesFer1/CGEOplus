@@ -379,6 +379,8 @@ function Benchmarking({
   ufRanking: Array<{ uf: string; total: number; temaRotulo: string }>;
   mesLabel: string;
 }) {
+  const [mostrarTodas, setMostrarTodas] = useState(false);
+
   if (ufRanking.length === 0) {
     return (
       <SectionShell
@@ -395,7 +397,7 @@ function Benchmarking({
             <code className="rounded bg-[var(--surface)] px-1 text-xs">UF · Total do Tema</code>
             {" "}pra posicionar o Piauí contra os outros estados.
           </p>
-          <Link href="/car/importar/ranking">
+          <Link href="/car/importar?aba=ranking">
             <Button variant="outline">Importar ranking</Button>
           </Link>
         </motion.div>
@@ -447,62 +449,91 @@ function Benchmarking({
         variants={fadeSlideUp}
         className="mt-6 rounded-2xl border bg-[var(--elevated)] p-6 shadow-[var(--shadow-sm)]"
       >
-        <div className="flex items-baseline justify-between">
-          <h3 className="text-base font-semibold">Ranking das UFs</h3>
-          {temaRotulo && (
-            <span className="text-xs text-[var(--text-muted)]">
-              Tema: <strong className="text-[var(--text)]">{temaRotulo}</strong>
-            </span>
-          )}
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <h3 className="text-base font-semibold">
+              {mostrarTodas ? "Ranking das 27 UFs" : "Top 10 UFs"}
+            </h3>
+            {temaRotulo && (
+              <p className="text-xs text-[var(--text-muted)]">
+                Tema: <strong className="text-[var(--text)]">{temaRotulo}</strong>
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setMostrarTodas((v) => !v)}
+            className="rounded-md border px-2.5 py-1 text-xs text-[var(--text-muted)] transition-colors hover:border-[#FF9F0A]/50 hover:text-[var(--text)]"
+          >
+            {mostrarTodas ? "Ver top 10" : "Ver todas as 27"}
+          </button>
         </div>
-        {/* Altura calculada: 24px por UF + margens. Sem overflow — mostra as 27 sem sumir label. */}
-        <div
-          className="mt-4"
-          style={{ height: `${Math.max(ufRanking.length * 24 + 40, 300)}px` }}
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={ufRanking}
-              layout="vertical"
-              margin={{ top: 8, right: 60, bottom: 8, left: 8 }}
-              barCategoryGap="20%"
+        {/* Top 10 fixo — legibilidade. Toggle expande pra 27 UFs (24px por linha). */}
+        {(() => {
+          const dados = mostrarTodas ? ufRanking : ufRanking.slice(0, 10);
+          return (
+            <div
+              className="mt-4"
+              style={{ height: `${Math.max(dados.length * 32 + 40, 320)}px` }}
             >
-              <CartesianGrid horizontal={false} stroke="var(--border)" />
-              <XAxis
-                type="number"
-                stroke="var(--text-muted)"
-                fontSize={11}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => formatNumber(v)}
-              />
-              <YAxis
-                type="category"
-                dataKey="uf"
-                stroke="var(--text-muted)"
-                fontSize={11}
-                axisLine={false}
-                tickLine={false}
-                width={36}
-                interval={0}
-              />
-              <Tooltip
-                contentStyle={tooltipStyle}
-                cursor={{ fill: "var(--surface)", opacity: 0.3 }}
-                formatter={(v) => [formatNumber(Number(v)), "Total"]}
-              />
-              <Bar dataKey="total" radius={[0, 4, 4, 0]}>
-                {ufRanking.map((r) => (
-                  <Cell
-                    key={r.uf}
-                    fill={r.uf === "PI" ? SICAR : "var(--accent)"}
-                    opacity={r.uf === "PI" ? 1 : 0.55}
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={dados}
+                  layout="vertical"
+                  margin={{ top: 8, right: 60, bottom: 8, left: 8 }}
+                  barCategoryGap="20%"
+                >
+                  <CartesianGrid horizontal={false} stroke="var(--border)" />
+                  <XAxis
+                    type="number"
+                    stroke="var(--text-muted)"
+                    fontSize={11}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => formatNumber(v)}
                   />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+                  <YAxis
+                    type="category"
+                    dataKey="uf"
+                    stroke="var(--text-muted)"
+                    fontSize={11}
+                    axisLine={false}
+                    tickLine={false}
+                    width={36}
+                    interval={0}
+                  />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    cursor={{ fill: "var(--surface)", opacity: 0.3 }}
+                    formatter={(v) => [formatNumber(Number(v)), "Total"]}
+                  />
+                  <Bar dataKey="total" radius={[0, 4, 4, 0]}>
+                    {dados.map((r) => (
+                      <Cell
+                        key={r.uf}
+                        fill={r.uf === "PI" ? SICAR : "var(--accent)"}
+                        opacity={r.uf === "PI" ? 1 : 0.55}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          );
+        })()}
+        {!mostrarTodas && ufRanking.findIndex((r) => r.uf === "PI") > 9 && (
+          <p className="mt-3 text-xs text-[var(--text-muted)]">
+            Piauí está fora do top 10 —{" "}
+            <button
+              type="button"
+              onClick={() => setMostrarTodas(true)}
+              className="underline underline-offset-2 hover:text-[var(--text)]"
+            >
+              ver todas as 27 UFs
+            </button>
+            .
+          </p>
+        )}
       </motion.div>
     </SectionShell>
   );
