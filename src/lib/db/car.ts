@@ -145,7 +145,9 @@ export const carRegistro = pgTable(
 );
 
 /** Ranking nacional por UF (para o gráfico de benchmarking).
- *  Alimentado por CSV separado (o mesmo formato atual: `UF;Total`). */
+ *  Alimentado pela planilha `UF · Total do Tema`. Um "tema" identifica o
+ *  recorte (ex.: `regularidade_ambiental_concluida`) — permite adicionar
+ *  outros temas depois sem quebrar o histórico. */
 export const carUfRanking = pgTable(
   "car_uf_ranking",
   {
@@ -154,6 +156,8 @@ export const carUfRanking = pgTable(
     mes: smallint("mes").notNull(),
     uf: char("uf", { length: 2 }).notNull(),
     total: integer("total").notNull(),
+    temaSlug: text("tema_slug").notNull(),
+    temaRotulo: text("tema_rotulo").notNull(),
   },
   (t) => [
     uniqueIndex("ux_car_uf_ranking_ano_mes_uf").on(t.ano, t.mes, t.uf),

@@ -86,17 +86,36 @@ export async function listImportacoesHistorico(): Promise<
     }));
 }
 
-/** Ranking nacional por UF para o mês/ano informados. Vazio se ausente. */
+/** Ranking nacional por UF para o mês/ano informados. Vazio se ausente.
+ *  Filtra por tema quando informado — hoje só existe um tema no banco. */
 export async function getUfRanking(
   ano: number,
   mes: number,
-): Promise<Array<{ uf: string; total: number }>> {
+  temaSlug?: string,
+): Promise<Array<{ uf: string; total: number; temaRotulo: string }>> {
+  const where = temaSlug
+    ? and(
+        eq(carUfRanking.ano, ano),
+        eq(carUfRanking.mes, mes),
+        eq(carUfRanking.temaSlug, temaSlug),
+      )
+    : and(eq(carUfRanking.ano, ano), eq(carUfRanking.mes, mes));
+
   const rows = await db
-    .select({ uf: carUfRanking.uf, total: carUfRanking.total })
+    .select({
+      uf: carUfRanking.uf,
+      total: carUfRanking.total,
+      temaRotulo: carUfRanking.temaRotulo,
+    })
     .from(carUfRanking)
-    .where(and(eq(carUfRanking.ano, ano), eq(carUfRanking.mes, mes)));
+    .where(where);
+
   return rows
-    .map((r) => ({ uf: r.uf.trim(), total: r.total }))
+    .map((r) => ({
+      uf: r.uf.trim(),
+      total: r.total,
+      temaRotulo: r.temaRotulo,
+    }))
     .sort((a, b) => b.total - a.total);
 }
 

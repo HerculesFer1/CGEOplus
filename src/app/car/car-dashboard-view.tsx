@@ -86,7 +86,7 @@ const NE_UFS = new Set(["CE","PI","AL","PB","PE","MA","SE","RN","BA"]);
 interface Props {
   ultima: CarImportacaoResumida;
   historico: Array<{ ano: number; mes: number; totalRegistros: number; resumo: CarImportacaoResumo }>;
-  ufRanking: Array<{ uf: string; total: number }>;
+  ufRanking: Array<{ uf: string; total: number; temaRotulo: string }>;
 }
 
 /* ── View ────────────────────────────────────────────────────────────────── */
@@ -376,7 +376,7 @@ function Benchmarking({
   ufRanking,
   mesLabel,
 }: {
-  ufRanking: Array<{ uf: string; total: number }>;
+  ufRanking: Array<{ uf: string; total: number; temaRotulo: string }>;
   mesLabel: string;
 }) {
   if (ufRanking.length === 0) {
@@ -388,12 +388,16 @@ function Benchmarking({
       >
         <motion.div
           variants={fadeSlideUp}
-          className="rounded-2xl border bg-[var(--elevated)] p-8 text-center text-sm text-[var(--text-muted)] shadow-[var(--shadow-sm)]"
+          className="flex flex-col items-center gap-4 rounded-2xl border bg-[var(--elevated)] p-8 text-center shadow-[var(--shadow-sm)]"
         >
-          Ranking nacional será exibido após importar o CSV{" "}
-          <code className="rounded bg-[var(--surface)] px-1 text-xs">UF;Total</code> em{" "}
-          <code className="rounded bg-[var(--surface)] px-1 text-xs">car_uf_ranking</code>
-          {" "}para o mesmo período.
+          <p className="max-w-lg text-sm text-[var(--text-muted)]">
+            Sem ranking nacional para {mesLabel}. Importe a planilha{" "}
+            <code className="rounded bg-[var(--surface)] px-1 text-xs">UF · Total do Tema</code>
+            {" "}pra posicionar o Piauí contra os outros estados.
+          </p>
+          <Link href="/car/importar/ranking">
+            <Button variant="outline">Importar ranking</Button>
+          </Link>
         </motion.div>
       </SectionShell>
     );
@@ -404,12 +408,13 @@ function Benchmarking({
   const piValue = ufRanking.find((r) => r.uf === "PI")?.total ?? 0;
   const neSorted = ufRanking.filter((r) => NE_UFS.has(r.uf));
   const piNeRank = neSorted.findIndex((r) => r.uf === "PI") + 1;
+  const temaRotulo = ufRanking[0]?.temaRotulo ?? "";
 
   return (
     <SectionShell
       icon={<TrendingUp className="h-4 w-4" strokeWidth={1.75} />}
       title="Benchmarking nacional"
-      subtitle={`Comparativo entre as 27 UFs · ${mesLabel}`}
+      subtitle={`${temaRotulo || "Comparativo entre as 27 UFs"} · ${mesLabel}`}
     >
       <motion.div variants={staggerContainer} className="grid gap-4 md:grid-cols-4">
         <KpiCard
@@ -442,13 +447,25 @@ function Benchmarking({
         variants={fadeSlideUp}
         className="mt-6 rounded-2xl border bg-[var(--elevated)] p-6 shadow-[var(--shadow-sm)]"
       >
-        <h3 className="text-base font-semibold">Ranking das UFs</h3>
-        <div className="mt-4 h-96">
+        <div className="flex items-baseline justify-between">
+          <h3 className="text-base font-semibold">Ranking das UFs</h3>
+          {temaRotulo && (
+            <span className="text-xs text-[var(--text-muted)]">
+              Tema: <strong className="text-[var(--text)]">{temaRotulo}</strong>
+            </span>
+          )}
+        </div>
+        {/* Altura calculada: 24px por UF + margens. Sem overflow — mostra as 27 sem sumir label. */}
+        <div
+          className="mt-4"
+          style={{ height: `${Math.max(ufRanking.length * 24 + 40, 300)}px` }}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={ufRanking}
               layout="vertical"
-              margin={{ top: 5, right: 20, bottom: 0, left: 10 }}
+              margin={{ top: 8, right: 60, bottom: 8, left: 8 }}
+              barCategoryGap="20%"
             >
               <CartesianGrid horizontal={false} stroke="var(--border)" />
               <XAxis
@@ -466,18 +483,20 @@ function Benchmarking({
                 fontSize={11}
                 axisLine={false}
                 tickLine={false}
-                width={30}
+                width={36}
+                interval={0}
               />
               <Tooltip
                 contentStyle={tooltipStyle}
-                formatter={(v) => formatNumber(Number(v))}
+                cursor={{ fill: "var(--surface)", opacity: 0.3 }}
+                formatter={(v) => [formatNumber(Number(v)), "Total"]}
               />
               <Bar dataKey="total" radius={[0, 4, 4, 0]}>
                 {ufRanking.map((r) => (
                   <Cell
                     key={r.uf}
                     fill={r.uf === "PI" ? SICAR : "var(--accent)"}
-                    opacity={r.uf === "PI" ? 1 : 0.5}
+                    opacity={r.uf === "PI" ? 1 : 0.55}
                   />
                 ))}
               </Bar>
