@@ -33,7 +33,8 @@ interface GeoJSON {
 type Metrica = "total" | "AG_GESTOR" | "PENDENTE" | "VALIDADO" | "CANCELADO";
 
 const METRICAS: Array<{ key: Metrica; label: string; short: string; cor: string }> = [
-  { key: "total",     label: "Total",              short: "Total",    cor: "#FF9F0A" },
+  // Total = azul CGEO+ (accent) para não conflitar com o laranja SICAR de Ag. Empreendedor.
+  { key: "total",     label: "Total",              short: "Total",    cor: "#0071E3" },
   { key: "AG_GESTOR", label: "Aguardando Gestor",  short: "Ag.Gestor", cor: "#FF453A" },
   { key: "PENDENTE",  label: "Ag. Empreendedor",   short: "Ag.Empreend.", cor: "#FF9F0A" },
   { key: "VALIDADO",  label: "Validados",          short: "Validados", cor: "#30D158" },
@@ -82,7 +83,7 @@ export function MapaMunicipal({ resumo }: Props) {
     return map;
   }, [resumo.porMunicipio]);
 
-  /** Valor selecionado por feature (0 se município não tem dados). */
+  /** Valor selecionado por feature + escala em 5 quantis (bins discretos). */
   const valores = useMemo(() => {
     if (!geo) return null;
     const arr: number[] = geo.features.map((f) => {
@@ -92,7 +93,16 @@ export function MapaMunicipal({ resumo }: Props) {
       return v.buckets[metrica] ?? 0;
     });
     const max = Math.max(1, ...arr);
-    return { arr, max };
+    // Calcula quebras por quantis SOBRE os valores > 0. Dado como total é
+    // altamente enviesado (Teresina domina), quantis dão mais contraste que
+    // escala linear/opacidade contínua.
+    const positivos = arr.filter((v) => v > 0).sort((a, b) => a - b);
+    const q = (p: number) =>
+      positivos.length === 0
+        ? 0
+        : positivos[Math.min(positivos.length - 1, Math.floor(p * positivos.length))];
+    const bins = [q(0.2), q(0.4), q(0.6), q(0.8)];
+    return { arr, max, bins };
   }, [geo, valoresPorMun, metrica]);
 
   const bbox = useMemo(() => geo && calcularBBox(geo), [geo]);
@@ -206,22 +216,49 @@ export function MapaMunicipal({ resumo }: Props) {
         )}
       </div>
 
-      {/* Legenda gradiente */}
-      <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
-        <span>0</span>
-        <div
-          className="h-2 flex-1 rounded"
-          style={{
-            background: `linear-gradient(to right, var(--surface), ${cor})`,
-          }}
-        />
-        <span>{formatNumber(valores.max)}</span>
+      {/* Legenda quantílica — 5 bins discretos + faixa "sem dados". */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
+        <span className="flex items-center gap-1.5">
+          <span
+            className="inline-block h-3 w-6 rounded"
+            style={{ backgroundColor: "var(--surface)", opacity: 0.35 }}
+          />
+          Sem dados
+        </span>
+        {BIN_OPACITY.map((op, i) => {
+          const inferior =
+            i === 0 ? 1 : valores.bins[i - 1] + 1;
+          const superior =
+            i < valores.bins.length ? valores.bins[i] : valores.max;
+          return (
+            <span key={i} className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-3 w-6 rounded"
+                style={{ backgroundColor: cor, opacity: op }}
+              />
+              {formatNumber(inferior)}–{formatNumber(superior)}
+            </span>
+          );
+        })}
       </div>
     </div>
   );
 }
 
 /* ── SVG do mapa (memoizado por metrica) ────────────────────────────────── */
+
+/** Retorna qual bin quantílico um valor cai (0..4). Valor 0 fica em -1 (sem dados). */
+function classificar(v: number, bins: number[]): number {
+  if (v <= 0) return -1;
+  for (let i = 0; i < bins.length; i++) {
+    if (v <= bins[i]) return i;
+  }
+  return bins.length; // bin superior
+}
+
+/** Opacidades discretas por bin — cor plena, sem translucidez enfraquecida.
+ *  Range mais estreito garante contraste alto entre municípios. */
+const BIN_OPACITY = [0.35, 0.55, 0.72, 0.87, 1.0];
 
 function MapaSvg({
   geo,
@@ -232,7 +269,7 @@ function MapaSvg({
 }: {
   geo: GeoJSON;
   bbox: { minX: number; minY: number; maxX: number; maxY: number };
-  valores: { arr: number[]; max: number };
+  valores: { arr: number[]; max: number; bins: number[] };
   cor: string;
   onHover: (h: { nome: string; valor: number; x: number; y: number } | null) => void;
 }) {
@@ -266,13 +303,15 @@ function MapaSvg({
       className="h-full w-full"
     >
       {paths.map((p, i) => {
-        const intensidade = valores.max > 0 ? p.valor / valores.max : 0;
-        const opacity = p.valor === 0 ? 0.08 : 0.25 + intensidade * 0.75;
+        const bin = classificar(p.valor, valores.bins);
+        // Sem dados = cinza sutil; com dados = cor plena em 5 níveis discretos.
+        const fill = bin < 0 ? "var(--surface)" : cor;
+        const opacity = bin < 0 ? 0.35 : BIN_OPACITY[bin];
         return (
           <path
             key={i}
             d={p.d}
-            fill={cor}
+            fill={fill}
             fillOpacity={opacity}
             stroke="var(--border)"
             strokeWidth={0.5}

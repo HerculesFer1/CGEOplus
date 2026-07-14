@@ -490,56 +490,48 @@ function Benchmarking({
             {mostrarTodas ? "Ver top 10" : "Ver todas as 27"}
           </button>
         </div>
-        {/* Top 10 fixo — legibilidade. Toggle expande pra 27 UFs (24px por linha). */}
+        {/* Barras estilo funil — mesma estrutura do "Funil de análise", cores atuais. */}
         {(() => {
           const dados = mostrarTodas ? ufRanking : ufRanking.slice(0, 10);
+          const maxValor = dados[0]?.total ?? 1;
           return (
-            <div
-              className="mt-4"
-              style={{ height: `${Math.max(dados.length * 32 + 40, 320)}px` }}
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={dados}
-                  layout="vertical"
-                  margin={{ top: 8, right: 60, bottom: 8, left: 8 }}
-                  barCategoryGap="20%"
-                >
-                  <CartesianGrid horizontal={false} stroke="var(--border)" />
-                  <XAxis
-                    type="number"
-                    stroke="var(--text-muted)"
-                    fontSize={11}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => formatNumber(v)}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="uf"
-                    stroke="var(--text-muted)"
-                    fontSize={11}
-                    axisLine={false}
-                    tickLine={false}
-                    width={36}
-                    interval={0}
-                  />
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    cursor={{ fill: "var(--surface)", opacity: 0.3 }}
-                    formatter={(v) => [formatNumber(Number(v)), "Total"]}
-                  />
-                  <Bar dataKey="total" radius={[0, 4, 4, 0]}>
-                    {dados.map((r) => (
-                      <Cell
-                        key={r.uf}
-                        fill={r.uf === "PI" ? SICAR : "var(--accent)"}
-                        opacity={r.uf === "PI" ? 1 : 0.55}
+            <div className="mt-4 space-y-3">
+              {dados.map((r) => {
+                const w = (r.total / maxValor) * 100;
+                const pct = totalBrasil > 0 ? (r.total / totalBrasil) * 100 : 0;
+                const isPi = r.uf === "PI";
+                return (
+                  <div key={r.uf} className="space-y-1.5">
+                    <div className="flex items-baseline justify-between text-sm">
+                      <span
+                        className={`font-medium ${isPi ? "" : ""}`}
+                        style={isPi ? { color: SICAR } : undefined}
+                      >
+                        {r.uf}
+                      </span>
+                      <span className="tabular-nums text-[var(--text-muted)]">
+                        <strong className="text-[var(--text)]">
+                          {formatNumber(r.total)}
+                        </strong>
+                        {" · "}
+                        {pct.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="h-6 overflow-hidden rounded-lg bg-[var(--surface)]">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${w}%` }}
+                        transition={spring.gentle}
+                        className="h-full rounded-lg"
+                        style={{
+                          background: isPi ? SICAR : "var(--accent)",
+                          opacity: isPi ? 1 : 0.55,
+                        }}
                       />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           );
         })()}
