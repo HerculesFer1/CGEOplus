@@ -168,6 +168,56 @@ export const carUfRanking = pgTable(
   ],
 );
 
+/** Granularidade do período em `car_serie_historica`. */
+export const carSerieGranularidadeEnum = pgEnum("car_serie_granularidade", [
+  "anual",
+  "mensal",
+]);
+
+/** Origem da linha da série (auditoria). */
+export const carSerieOrigemEnum = pgEnum("car_serie_origem", [
+  "seed",
+  "sync_importacao",
+  "manual",
+]);
+
+/** Série histórica agregada — 1 linha por período (ano ou mês).
+ *  Independe de `car_importacao` (que só cobre meses com CSV importado).
+ *  Alimenta a seção Evolução Temporal e o Diagnóstico do painel /car. */
+export const carSerieHistorica = pgTable(
+  "car_serie_historica",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    periodoLabel: text("periodo_label").notNull().unique(),
+    /** Chave ordenável estável: 202200 (ano) ou 202607 (Jul/26). */
+    periodoOrdem: integer("periodo_ordem").notNull().unique(),
+    granularidade: carSerieGranularidadeEnum("granularidade").notNull(),
+    agGestor: integer("ag_gestor").notNull().default(0),
+    pendentes: integer("pendentes").notNull().default(0),
+    validados: integer("validados").notNull().default(0),
+    cancelados: integer("cancelados").notNull().default(0),
+    suspensos: integer("suspensos").notNull().default(0),
+    total: integer("total").notNull().default(0),
+    origem: carSerieOrigemEnum("origem").notNull().default("seed"),
+    atualizadoEm: timestamp("atualizado_em", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("ix_car_serie_historica_ordem").on(t.periodoOrdem),
+  ],
+);
+
+/** Chave-valor para config do módulo CAR (baseline, thresholds). */
+export const carConfig = pgTable("car_config", {
+  chave: text("chave").primaryKey(),
+  valor: jsonb("valor").notNull(),
+  descricao: text("descricao"),
+  atualizadoEm: timestamp("atualizado_em", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 /* ==========================================================================
    RELATIONS
    ========================================================================== */

@@ -3,8 +3,10 @@ import { FileSpreadsheet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
-  getUltimaImportacao,
+  getCarConfig,
+  getSerieHistorica,
   getUfRanking,
+  getUltimaImportacao,
   listImportacoesHistorico,
 } from "@/lib/car/queries";
 
@@ -39,9 +41,11 @@ export default async function Page() {
     );
   }
 
-  const [historico, ufRanking] = await Promise.all([
+  const [historico, ufRanking, serieHistorica, config] = await Promise.all([
     listImportacoesHistorico(),
     getUfRanking(ultima.ano, ultima.mes),
+    getSerieHistorica(),
+    getCarConfig(),
   ]);
 
   return (
@@ -49,6 +53,8 @@ export default async function Page() {
       ultima={ultima}
       historico={historico}
       ufRanking={ufRanking}
+      serieHistorica={serieHistorica}
+      config={config}
     />
   );
 }

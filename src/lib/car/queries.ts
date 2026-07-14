@@ -5,12 +5,14 @@
  * cada page load.
  */
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import {
+  carConfig,
   carFaseBucketMap,
   carImportacao,
+  carSerieHistorica,
   carUfRanking,
 } from "@/lib/db/car";
 
@@ -117,6 +119,45 @@ export async function getUfRanking(
       temaRotulo: r.temaRotulo,
     }))
     .sort((a, b) => b.total - a.total);
+}
+
+export interface SerieHistoricaRow {
+  periodoLabel: string;
+  periodoOrdem: number;
+  granularidade: "anual" | "mensal";
+  agGestor: number;
+  pendentes: number;
+  validados: number;
+  cancelados: number;
+  suspensos: number;
+  total: number;
+}
+
+/** Série histórica completa em ordem cronológica (2022 → mais recente). */
+export async function getSerieHistorica(): Promise<SerieHistoricaRow[]> {
+  const rows = await db
+    .select({
+      periodoLabel: carSerieHistorica.periodoLabel,
+      periodoOrdem: carSerieHistorica.periodoOrdem,
+      granularidade: carSerieHistorica.granularidade,
+      agGestor: carSerieHistorica.agGestor,
+      pendentes: carSerieHistorica.pendentes,
+      validados: carSerieHistorica.validados,
+      cancelados: carSerieHistorica.cancelados,
+      suspensos: carSerieHistorica.suspensos,
+      total: carSerieHistorica.total,
+    })
+    .from(carSerieHistorica)
+    .orderBy(asc(carSerieHistorica.periodoOrdem));
+  return rows;
+}
+
+/** Config do módulo CAR (baseline, thresholds). */
+export async function getCarConfig(): Promise<Record<string, unknown>> {
+  const rows = await db
+    .select({ chave: carConfig.chave, valor: carConfig.valor })
+    .from(carConfig);
+  return Object.fromEntries(rows.map((r) => [r.chave, r.valor]));
 }
 
 /** Fases atualmente em NAO_CLASSIFICADO (a partir do resumo da última importação). */

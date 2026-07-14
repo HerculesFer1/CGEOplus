@@ -47,6 +47,7 @@ import { formatNumber } from "@/lib/utils";
 import type { CarImportacaoResumo } from "@/lib/car/importer";
 import type { CarImportacaoResumida } from "@/lib/car/queries";
 import type { CarBucket } from "@/lib/car/types";
+import { MapaMunicipal } from "./mapa-municipal";
 
 /* ── Constantes visuais ──────────────────────────────────────────────────── */
 
@@ -83,15 +84,35 @@ const NE_UFS = new Set(["CE","PI","AL","PB","PE","MA","SE","RN","BA"]);
 
 /* ── Props ───────────────────────────────────────────────────────────────── */
 
+export interface SerieHistoricaItem {
+  periodoLabel: string;
+  periodoOrdem: number;
+  granularidade: "anual" | "mensal";
+  agGestor: number;
+  pendentes: number;
+  validados: number;
+  cancelados: number;
+  suspensos: number;
+  total: number;
+}
+
 interface Props {
   ultima: CarImportacaoResumida;
   historico: Array<{ ano: number; mes: number; totalRegistros: number; resumo: CarImportacaoResumo }>;
   ufRanking: Array<{ uf: string; total: number; temaRotulo: string }>;
+  serieHistorica: SerieHistoricaItem[];
+  config: Record<string, unknown>;
 }
 
 /* ── View ────────────────────────────────────────────────────────────────── */
 
-export function CarDashboardView({ ultima, historico, ufRanking }: Props) {
+export function CarDashboardView({
+  ultima,
+  historico,
+  ufRanking,
+  serieHistorica,
+  config,
+}: Props) {
   const { resumo } = ultima;
   const mesLabel = `${MESES[ultima.mes - 1]}/${String(ultima.ano).slice(2)}`;
 
@@ -140,14 +161,15 @@ export function CarDashboardView({ ultima, historico, ufRanking }: Props) {
         pctPorBucket={pctPorBucket}
       />
 
-      <EvolucaoTemporal historico={historico} />
+      <EvolucaoTemporal serie={serieHistorica} />
 
       <CamadaMunicipal resumo={resumo} />
 
       <Diagnostico
         resumo={resumo}
         totalRegistros={ultima.totalRegistros}
-        historico={historico}
+        serie={serieHistorica}
+        config={config}
       />
     </motion.div>
   );
@@ -620,20 +642,30 @@ function Funil({
 
 /* ── Seção 4: Evolução Temporal ──────────────────────────────────────────── */
 
-function EvolucaoTemporal({ historico }: { historico: Props["historico"] }) {
-  const data = historico.map((h) => ({
-    label: `${MESES[h.mes - 1]}/${String(h.ano).slice(2)}`,
-    total: h.totalRegistros,
-    ag_gestor: h.resumo.totalPorBucket.AG_GESTOR,
-    pendente: h.resumo.totalPorBucket.PENDENTE,
-    validado: h.resumo.totalPorBucket.VALIDADO,
+function EvolucaoTemporal({ serie }: { serie: SerieHistoricaItem[] }) {
+  const data = serie.map((s) => ({
+    label: s.periodoLabel,
+    granularidade: s.granularidade,
+    ag_gestor: s.agGestor,
+    pendente: s.pendentes,
+    validado: s.validados,
+    cancelado: s.cancelados,
+    suspenso: s.suspensos,
+    total: s.total,
   }));
+
+  const primeiro = serie[0];
+  const ultimo = serie[serie.length - 1];
+  const subtitulo =
+    primeiro && ultimo
+      ? `${primeiro.periodoLabel} → ${ultimo.periodoLabel} · ${serie.length} períodos`
+      : "Série histórica";
 
   return (
     <SectionShell
       icon={<Clock className="h-4 w-4" strokeWidth={1.75} />}
       title="Evolução temporal"
-      subtitle="Série histórica das importações mensais"
+      subtitle={subtitulo}
     >
       <motion.div
         variants={fadeSlideUp}
@@ -641,13 +673,20 @@ function EvolucaoTemporal({ historico }: { historico: Props["historico"] }) {
       >
         {data.length < 2 ? (
           <p className="p-6 text-center text-sm text-[var(--text-muted)]">
-            A evolução temporal aparecerá após a segunda importação.
+            Precisa de pelo menos 2 pontos para exibir tendência.
           </p>
         ) : (
-          <div className="h-72">
+          <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <LineChart
+                data={data}
+                margin={{ top: 10, right: 10, bottom: 0, left: -10 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="var(--border)"
+                  vertical={false}
+                />
                 <XAxis
                   dataKey="label"
                   stroke="var(--text-muted)"
@@ -694,6 +733,14 @@ function EvolucaoTemporal({ historico }: { historico: Props["historico"] }) {
                   strokeWidth={2}
                   dot={{ r: 3 }}
                 />
+                <Line
+                  type="monotone"
+                  dataKey="cancelado"
+                  name="Cancelados"
+                  stroke={BUCKET_COLOR.CANCELADO}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -706,6 +753,7 @@ function EvolucaoTemporal({ historico }: { historico: Props["historico"] }) {
 /* ── Camada municipal (extra além do dashboard antigo) ──────────────────── */
 
 function CamadaMunicipal({ resumo }: { resumo: CarImportacaoResumo }) {
+  const [visao, setVisao] = useState<"tabela" | "mapa">("tabela");
   const [q, setQ] = useState("");
   const [ordenar, setOrdenar] = useState<"total" | "ag_gestor" | "pendente">(
     "total",
@@ -740,6 +788,36 @@ function CamadaMunicipal({ resumo }: { resumo: CarImportacaoResumo }) {
         variants={fadeSlideUp}
         className="rounded-2xl border bg-[var(--elevated)] p-6 shadow-[var(--shadow-sm)]"
       >
+        {/* Toggle Tabela ↔ Mapa */}
+        <div className="mb-4 flex items-center gap-1 rounded-xl border bg-[var(--surface)] p-1 md:w-fit">
+          <button
+            type="button"
+            onClick={() => setVisao("tabela")}
+            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              visao === "tabela"
+                ? "bg-[var(--elevated)] text-[var(--text)] shadow-[var(--shadow-sm)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text)]"
+            }`}
+          >
+            Tabela
+          </button>
+          <button
+            type="button"
+            onClick={() => setVisao("mapa")}
+            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              visao === "mapa"
+                ? "bg-[var(--elevated)] text-[var(--text)] shadow-[var(--shadow-sm)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text)]"
+            }`}
+          >
+            Mapa
+          </button>
+        </div>
+
+        {visao === "mapa" ? (
+          <MapaMunicipal resumo={resumo} />
+        ) : (
+          <>
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <input
             type="search"
@@ -816,6 +894,8 @@ function CamadaMunicipal({ resumo }: { resumo: CarImportacaoResumo }) {
             </tbody>
           </table>
         </div>
+          </>
+        )}
       </motion.div>
     </SectionShell>
   );
@@ -826,81 +906,110 @@ function CamadaMunicipal({ resumo }: { resumo: CarImportacaoResumo }) {
 function Diagnostico({
   resumo,
   totalRegistros,
-  historico,
+  serie,
+  config,
 }: {
   resumo: CarImportacaoResumo;
   totalRegistros: number;
-  historico: Props["historico"];
+  serie: SerieHistoricaItem[];
+  config: Record<string, unknown>;
 }) {
-  // Necessidade de técnicos: 50 análises/mês por técnico, meta zerar em 12 meses
-  const tecnicos = Math.round(resumo.totalPorBucket.AG_GESTOR / 50 / 12);
+  const capacidadeTecnico =
+    (config.pi_capacidade_mensal_por_tecnico as number | undefined) ?? 50;
+  const baselineJan =
+    (config.pi_baseline_analises_jan_2026 as number | undefined) ?? null;
 
-  const primeiroMes = historico[0];
-  const crescimentoTotal =
-    primeiroMes && primeiroMes.totalRegistros > 0
-      ? ((totalRegistros - primeiroMes.totalRegistros) / primeiroMes.totalRegistros) * 100
+  // 1) Necessidade de técnicos p/ zerar o passivo do gestor em 12 meses.
+  const tecnicos = Math.round(
+    resumo.totalPorBucket.AG_GESTOR / capacidadeTecnico / 12,
+  );
+
+  // 2) Crescimento do total desde 2022 (base histórica, não última importação).
+  const primeiro = serie[0];
+  const ultimo = serie[serie.length - 1];
+  const crescimentoDesdeBase =
+    primeiro && primeiro.total > 0 && ultimo
+      ? ((ultimo.total - primeiro.total) / primeiro.total) * 100
       : null;
 
-  const validadosCurrent = resumo.totalPorBucket.VALIDADO;
+  // 3) Δ Validados no último mês vs. mês anterior (usa a série, não importação).
+  const validadosAtual = ultimo?.validados ?? 0;
   const validadosPrev =
-    historico.length >= 2
-      ? historico[historico.length - 2].resumo.totalPorBucket.VALIDADO
-      : null;
+    serie.length >= 2 ? serie[serie.length - 2].validados : null;
   const crescimentoValidados =
     validadosPrev !== null && validadosPrev > 0
-      ? ((validadosCurrent - validadosPrev) / validadosPrev) * 100
+      ? ((validadosAtual - validadosPrev) / validadosPrev) * 100
       : null;
+
+  // 4) Análises concluídas desde Jan/26 (baseline configurável).
+  const desdeBaseline =
+    baselineJan !== null && ultimo ? validadosAtual - baselineJan : null;
 
   return (
     <SectionShell
       icon={<CheckCircle2 className="h-4 w-4" strokeWidth={1.75} />}
       title="Diagnóstico"
-      subtitle="KPIs acionáveis para a gestão"
+      subtitle={
+        primeiro && ultimo
+          ? `KPIs acionáveis · série ${primeiro.periodoLabel} → ${ultimo.periodoLabel}`
+          : "KPIs acionáveis para a gestão"
+      }
     >
       <motion.div variants={staggerContainer} className="grid gap-4 md:grid-cols-4">
         <KpiCard
           icon={<Users className="h-4 w-4" strokeWidth={1.75} />}
           label="Técnicos necessários"
           value={tecnicos}
-          hint="Para zerar o passivo do gestor em 12 meses (50 análises/mês/técnico)"
+          hint={`Para zerar o passivo do gestor em 12 meses (${capacidadeTecnico} análises/mês/técnico)`}
         />
         <KpiCard
           label="Crescimento total"
-          value={crescimentoTotal ?? 0}
+          value={crescimentoDesdeBase ?? 0}
           suffix="%"
           decimals={1}
           hint={
-            crescimentoTotal !== null
-              ? `Desde a 1ª importação (${MESES[primeiroMes.mes - 1]}/${String(primeiroMes.ano).slice(2)})`
-              : "Aparece a partir da 2ª importação"
+            crescimentoDesdeBase !== null && primeiro
+              ? `Desde ${primeiro.periodoLabel} (base histórica)`
+              : "Sem série histórica"
           }
         />
         <KpiCard
-          label="Δ Validados m/m"
+          label="Δ Validados vs. mês anterior"
           value={crescimentoValidados ?? 0}
           suffix="%"
           decimals={1}
           hint={
-            crescimentoValidados !== null
-              ? "Variação vs. mês anterior"
-              : "Aparece a partir da 2ª importação"
+            crescimentoValidados !== null && serie.length >= 2
+              ? `${serie[serie.length - 2].periodoLabel} → ${ultimo!.periodoLabel}`
+              : "Precisa 2+ pontos na série"
           }
         />
         <KpiCard
-          label="Fases não classificadas"
-          value={resumo.fasesNaoClassificadas.length}
-          color={
-            resumo.fasesNaoClassificadas.length > 0
-              ? BUCKET_COLOR.NAO_CLASSIFICADO
-              : undefined
-          }
+          label="Análises desde Jan/26"
+          value={desdeBaseline ?? 0}
           hint={
-            resumo.fasesNaoClassificadas.length > 0
-              ? "Reimporte para resolver"
-              : "Mapa completo — nenhuma fase pendente"
+            desdeBaseline !== null
+              ? `Baseline Jan/26 = ${formatNumber(baselineJan!)} validados`
+              : "Baseline não configurado"
           }
         />
       </motion.div>
+
+      {resumo.fasesNaoClassificadas.length > 0 && (
+        <motion.div
+          variants={fadeSlideUp}
+          className="mt-4 rounded-2xl border border-[var(--warning)]/40 bg-[var(--warning)]/5 p-4"
+        >
+          <p className="text-sm">
+            <AlertTriangle
+              className="mr-1.5 inline-block h-4 w-4 -translate-y-0.5 text-[var(--warning)]"
+              strokeWidth={1.75}
+            />
+            <strong>{resumo.fasesNaoClassificadas.length}</strong> fase(s) não
+            classificada(s) na última importação — reimporte para resolver.
+          </p>
+        </motion.div>
+      )}
     </SectionShell>
   );
 }

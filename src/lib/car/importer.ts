@@ -18,6 +18,7 @@ import {
   carFaseBucketMap,
   carImportacao,
   carRegistro,
+  carSerieHistorica,
 } from "@/lib/db/car";
 import { applyManualResolutions, classifyRows, type ClassifyResult } from "./classifier";
 import { parseCarCsv } from "./parser";
@@ -32,6 +33,11 @@ import type {
  *  parâmetros por statement — com 6 colunas, ~10k por batch. Usamos 3000
  *  para folga e para não estourar o request body em transações longas. */
 const CAR_REGISTRO_BATCH = 3000;
+
+/** Abreviaturas para o label da série histórica (mesma convenção do dash antigo). */
+const MES_ABREV = [
+  "Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez",
+];
 
 export interface CarImportacaoResumo extends CarPreview {
   encoding: "utf-8" | "windows-1252";
@@ -202,6 +208,41 @@ export async function commitCarImport(
         })),
       );
     }
+
+    // Sincroniza série histórica: 1 linha mensal por importação.
+    // Sobrescreve se já existir (reimportação corrige a série).
+    const buckets = classify.preview.totalPorBucket;
+    const periodoOrdem = input.ano * 100 + input.mes;
+    const periodoLabel = `${MES_ABREV[input.mes - 1]}/${String(input.ano).slice(2)}`;
+    await tx
+      .insert(carSerieHistorica)
+      .values({
+        periodoLabel,
+        periodoOrdem,
+        granularidade: "mensal",
+        agGestor: buckets.AG_GESTOR,
+        pendentes: buckets.PENDENTE,
+        validados: buckets.VALIDADO,
+        cancelados: buckets.CANCELADO,
+        suspensos: buckets.SUSPENSO,
+        total: classify.classified.length,
+        origem: "sync_importacao",
+      })
+      .onConflictDoUpdate({
+        target: carSerieHistorica.periodoOrdem,
+        set: {
+          periodoLabel: sql`excluded.periodo_label`,
+          granularidade: sql`excluded.granularidade`,
+          agGestor: sql`excluded.ag_gestor`,
+          pendentes: sql`excluded.pendentes`,
+          validados: sql`excluded.validados`,
+          cancelados: sql`excluded.cancelados`,
+          suspensos: sql`excluded.suspensos`,
+          total: sql`excluded.total`,
+          origem: sql`excluded.origem`,
+          atualizadoEm: sql`NOW()`,
+        },
+      });
 
     // Upsert das fases resolvidas manualmente (origem = manual).
     if (input.resolucoes.size > 0) {
