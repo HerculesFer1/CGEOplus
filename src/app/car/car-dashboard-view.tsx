@@ -433,6 +433,10 @@ function Benchmarking({
   const neSorted = ufRanking.filter((r) => NE_UFS.has(r.uf));
   const piNeRank = neSorted.findIndex((r) => r.uf === "PI") + 1;
   const temaRotulo = ufRanking[0]?.temaRotulo ?? "";
+  const proximaAcimaPi = piRank > 1 ? ufRanking[piRank - 2] : null;
+  const deltaProximaAcima = proximaAcimaPi
+    ? Math.max(0, proximaAcimaPi.total - piValue) + 1
+    : 0;
 
   return (
     <SectionShell
@@ -440,7 +444,7 @@ function Benchmarking({
       title="Benchmarking nacional"
       subtitle={`${temaRotulo || "Comparativo entre as 27 UFs"} · ${mesLabel}`}
     >
-      <motion.div variants={staggerContainer} className="grid gap-4 md:grid-cols-4">
+      <motion.div variants={staggerContainer} className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <KpiCard
           label="Ranking nacional"
           value={piRank}
@@ -459,6 +463,21 @@ function Benchmarking({
           label="Análises concluídas PI"
           value={piValue}
           hint={`${((piValue / totalBrasil) * 100).toFixed(1)}% do Brasil`}
+        />
+        <KpiCard
+          label={
+            proximaAcimaPi
+              ? `Falta pra ${proximaAcimaPi.uf} (${piRank - 1}°)`
+              : "Já é 1° do Brasil"
+          }
+          value={proximaAcimaPi ? deltaProximaAcima : 0}
+          prefix={proximaAcimaPi ? "+" : ""}
+          color={proximaAcimaPi ? SICAR : undefined}
+          hint={
+            proximaAcimaPi
+              ? `${proximaAcimaPi.uf}: ${formatNumber(proximaAcimaPi.total)} análises`
+              : "PI lidera o ranking nacional"
+          }
         />
         <KpiCard
           label="Total Brasil"
@@ -494,22 +513,44 @@ function Benchmarking({
         {(() => {
           const dados = mostrarTodas ? ufRanking : ufRanking.slice(0, 10);
           const maxValor = dados[0]?.total ?? 1;
+          // Δ pro PI subir uma posição: UF imediatamente acima no ranking geral.
+          const piIdxGeral = ufRanking.findIndex((r) => r.uf === "PI");
+          const proximaAcima =
+            piIdxGeral > 0 ? ufRanking[piIdxGeral - 1] : null;
+          const deltaProximaPi =
+            proximaAcima
+              ? Math.max(0, proximaAcima.total - (ufRanking[piIdxGeral]?.total ?? 0)) + 1
+              : 0;
           return (
             <div className="mt-4 space-y-3">
               {dados.map((r) => {
                 const w = (r.total / maxValor) * 100;
                 const pct = totalBrasil > 0 ? (r.total / totalBrasil) * 100 : 0;
                 const isPi = r.uf === "PI";
+                const posGeral = ufRanking.findIndex((x) => x.uf === r.uf) + 1;
                 return (
                   <div key={r.uf} className="space-y-1.5">
-                    <div className="flex items-baseline justify-between text-sm">
-                      <span
-                        className={`font-medium ${isPi ? "" : ""}`}
-                        style={isPi ? { color: SICAR } : undefined}
-                      >
-                        {r.uf}
+                    <div className="flex items-baseline justify-between gap-2 text-sm">
+                      <span className="flex min-w-0 items-baseline gap-2">
+                        <span className="w-7 shrink-0 text-right text-xs tabular-nums text-[var(--text-muted)]">
+                          {posGeral}°
+                        </span>
+                        <span
+                          className="truncate font-medium"
+                          style={isPi ? { color: SICAR } : undefined}
+                        >
+                          {r.uf}
+                        </span>
+                        {isPi && proximaAcima && (
+                          <span
+                            className="ml-1 hidden shrink-0 text-[11px] text-[var(--text-muted)] sm:inline"
+                            title={`Diferença pra ${proximaAcima.uf} (${posGeral - 1}°)`}
+                          >
+                            +{formatNumber(deltaProximaPi)} pra {proximaAcima.uf}
+                          </span>
+                        )}
                       </span>
-                      <span className="tabular-nums text-[var(--text-muted)]">
+                      <span className="shrink-0 tabular-nums text-[var(--text-muted)]">
                         <strong className="text-[var(--text)]">
                           {formatNumber(r.total)}
                         </strong>
