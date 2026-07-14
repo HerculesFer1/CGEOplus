@@ -55,6 +55,13 @@ export function MapaMunicipal({ resumo }: Props) {
     x: number;
     y: number;
   } | null>(null);
+  // Município selecionado por clique (só ativo na aba "total").
+  const [selecionado, setSelecionado] = useState<string | null>(null);
+
+  // Reset seleção ao trocar de métrica — clique só faz sentido na aba Total.
+  useEffect(() => {
+    if (metrica !== "total") setSelecionado(null);
+  }, [metrica]);
 
   useEffect(() => {
     let cancel = false;
@@ -83,7 +90,8 @@ export function MapaMunicipal({ resumo }: Props) {
     return map;
   }, [resumo.porMunicipio]);
 
-  /** Valor selecionado por feature + escala em 5 quantis (bins discretos). */
+  /** Valor selecionado por feature + escala em 5 quantis (bins discretos).
+   *  Retorna também maior/menor município (nomes) para os overlays. */
   const valores = useMemo(() => {
     if (!geo) return null;
     const arr: number[] = geo.features.map((f) => {
@@ -93,16 +101,32 @@ export function MapaMunicipal({ resumo }: Props) {
       return v.buckets[metrica] ?? 0;
     });
     const max = Math.max(1, ...arr);
-    // Calcula quebras por quantis SOBRE os valores > 0. Dado como total é
-    // altamente enviesado (Teresina domina), quantis dão mais contraste que
-    // escala linear/opacidade contínua.
+
+    let maiorNome = "—",
+      maiorValor = 0,
+      menorNome = "—",
+      menorValor = Infinity;
+    geo.features.forEach((f, i) => {
+      const v = arr[i];
+      if (v <= 0) return;
+      if (v > maiorValor) {
+        maiorValor = v;
+        maiorNome = f.properties.name;
+      }
+      if (v < menorValor) {
+        menorValor = v;
+        menorNome = f.properties.name;
+      }
+    });
+    if (menorValor === Infinity) menorValor = 0;
+
     const positivos = arr.filter((v) => v > 0).sort((a, b) => a - b);
     const q = (p: number) =>
       positivos.length === 0
         ? 0
         : positivos[Math.min(positivos.length - 1, Math.floor(p * positivos.length))];
     const bins = [q(0.2), q(0.4), q(0.6), q(0.8)];
-    return { arr, max, bins };
+    return { arr, max, bins, maiorNome, maiorValor, menorNome, menorValor };
   }, [geo, valoresPorMun, metrica]);
 
   const bbox = useMemo(() => geo && calcularBBox(geo), [geo]);
@@ -117,14 +141,22 @@ export function MapaMunicipal({ resumo }: Props) {
   if (!geo || !valores || !bbox) {
     return (
       <div className="flex h-96 items-center justify-center text-sm text-[var(--text-muted)]">
-        Carregando mapa dos 223 municípios…
+        Carregando mapa dos 224 municípios…
       </div>
     );
   }
 
-  const cor = METRICAS.find((m) => m.key === metrica)!.cor;
+  const metricaAtual = METRICAS.find((m) => m.key === metrica)!;
+  const cor = metricaAtual.cor;
   const total = valores.arr.reduce((s, v) => s + v, 0);
   const cobertura = valores.arr.filter((v) => v > 0).length;
+  const totalMunicipios = geo.features.length;
+
+  // Seleção só é válida quando a métrica ativa for "total".
+  const selAtivo = metrica === "total" ? selecionado : null;
+  const selValor = selAtivo
+    ? valoresPorMun.get(norm(selAtivo))?.total ?? 0
+    : null;
 
   return (
     <div className="space-y-4">
@@ -158,49 +190,86 @@ export function MapaMunicipal({ resumo }: Props) {
         ))}
       </motion.div>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-lg border bg-[var(--elevated)] p-3">
-          <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
-            {METRICAS.find((m) => m.key === metrica)!.label}
-          </p>
-          <p className="mt-1 text-xl font-semibold tabular-nums" style={{ color: cor }}>
-            {formatNumber(total)}
-          </p>
-        </div>
-        <div className="rounded-lg border bg-[var(--elevated)] p-3">
-          <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
-            Municípios com dados
-          </p>
-          <p className="mt-1 text-xl font-semibold tabular-nums">
-            {cobertura} <span className="text-sm text-[var(--text-muted)]">/ 223</span>
-          </p>
-        </div>
-        <div className="rounded-lg border bg-[var(--elevated)] p-3">
-          <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
-            Município c/ maior valor
-          </p>
-          <p className="mt-1 text-xl font-semibold tabular-nums">
-            {formatNumber(valores.max)}
-          </p>
-        </div>
-      </div>
-
-      {/* Mapa SVG */}
+      {/* Mapa SVG — altura fixa que casa com o Top 20 da tabela.
+       *  PI é portrait (viewBox 1000×1200), então em um container landscape
+       *  a projeção fica centralizada horizontalmente com folga nas laterais.
+       *  Os overlays ocupam essas folgas sem se sobrepor ao mapa. */}
       <div
         className="relative overflow-hidden rounded-xl border bg-[var(--surface)]"
-        style={{ aspectRatio: "3 / 4" }}
+        style={{ height: "min(72vh, 640px)", minHeight: 460 }}
       >
         <MapaSvg
           geo={geo}
           bbox={bbox}
           valores={valores}
           cor={cor}
+          selecionado={selAtivo}
+          clicavel={metrica === "total"}
           onHover={setHover}
+          onSelect={(nome) => {
+            if (metrica !== "total") return;
+            setSelecionado((prev) => (prev === nome ? null : nome));
+          }}
         />
+
+        {/* Overlays flutuantes — bloco 2×2 no canto superior esquerdo. */}
+        <div className="pointer-events-none absolute left-3 top-3 z-10 grid grid-cols-2 gap-2">
+          <OverlayCard>
+            <OverlayLabel>{selAtivo ? "Município selecionado" : metricaAtual.label}</OverlayLabel>
+            <OverlayValue color={cor}>
+              {formatNumber(selAtivo ? selValor ?? 0 : total)}
+            </OverlayValue>
+            {selAtivo ? (
+              <div className="mt-0.5 flex items-center gap-1.5">
+                <span className="truncate text-[11px] font-medium text-[var(--text)]">
+                  {selAtivo}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelecionado(null)}
+                  className="ml-auto rounded-md border border-transparent px-1 text-[10px] text-[var(--text-muted)] hover:border-[var(--border)] hover:text-[var(--text)]"
+                  aria-label="Limpar seleção"
+                >
+                  limpar
+                </button>
+              </div>
+            ) : metrica === "total" ? (
+              <p className="mt-0.5 text-[10px] text-[var(--text-subtle)]">
+                Clique num município
+              </p>
+            ) : null}
+          </OverlayCard>
+
+          <OverlayCard>
+            <OverlayLabel>Maior N° de Análise</OverlayLabel>
+            <OverlayValue color={cor}>{formatNumber(valores.maiorValor)}</OverlayValue>
+            <p className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">
+              {valores.maiorNome}
+            </p>
+          </OverlayCard>
+
+          <OverlayCard>
+            <OverlayLabel>Municípios com dados</OverlayLabel>
+            <OverlayValue>
+              {cobertura}
+              <span className="ml-0.5 text-sm text-[var(--text-muted)]">
+                / {totalMunicipios}
+              </span>
+            </OverlayValue>
+          </OverlayCard>
+
+          <OverlayCard>
+            <OverlayLabel>Menor N° de Análise</OverlayLabel>
+            <OverlayValue color={cor}>{formatNumber(valores.menorValor)}</OverlayValue>
+            <p className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">
+              {valores.menorNome}
+            </p>
+          </OverlayCard>
+        </div>
 
         {hover && (
           <div
-            className="pointer-events-none absolute rounded-md border bg-[var(--elevated)] px-2.5 py-1.5 text-xs shadow-[var(--shadow-sm)]"
+            className="pointer-events-none absolute z-20 rounded-md border bg-[var(--elevated)] px-2.5 py-1.5 text-xs shadow-[var(--shadow-sm)]"
             style={{
               left: `${hover.x}px`,
               top: `${hover.y}px`,
@@ -209,7 +278,7 @@ export function MapaMunicipal({ resumo }: Props) {
           >
             <div className="font-medium text-[var(--text)]">{hover.nome}</div>
             <div className="text-[var(--text-muted)]">
-              {METRICAS.find((m) => m.key === metrica)!.short}:{" "}
+              {metricaAtual.short}:{" "}
               <strong style={{ color: cor }}>{formatNumber(hover.valor)}</strong>
             </div>
           </div>
@@ -265,13 +334,19 @@ function MapaSvg({
   bbox,
   valores,
   cor,
+  selecionado,
+  clicavel,
   onHover,
+  onSelect,
 }: {
   geo: GeoJSON;
   bbox: { minX: number; minY: number; maxX: number; maxY: number };
   valores: { arr: number[]; max: number; bins: number[] };
   cor: string;
+  selecionado: string | null;
+  clicavel: boolean;
   onHover: (h: { nome: string; valor: number; x: number; y: number } | null) => void;
+  onSelect: (nome: string) => void;
 }) {
   // Projeção equirectangular normalizada em viewBox 1000x1200.
   const width = 1000;
@@ -304,21 +379,19 @@ function MapaSvg({
     >
       {paths.map((p, i) => {
         const bin = classificar(p.valor, valores.bins);
-        // Sem dados = cinza sutil; com dados = cor plena em 5 níveis discretos.
         const fill = bin < 0 ? "var(--surface)" : cor;
         const opacity = bin < 0 ? 0.35 : BIN_OPACITY[bin];
+        const isSelecionado = selecionado === p.name;
         return (
           <path
             key={i}
             d={p.d}
             fill={fill}
             fillOpacity={opacity}
-            stroke="var(--border)"
-            strokeWidth={0.5}
-            className="cursor-pointer transition-opacity hover:stroke-[var(--text)]"
+            stroke={isSelecionado ? "var(--text)" : "var(--border)"}
+            strokeWidth={isSelecionado ? 1.5 : 0.5}
+            className={`${clicavel ? "cursor-pointer" : "cursor-default"} transition-opacity hover:stroke-[var(--text)]`}
             onMouseEnter={(e) => {
-              const rect = (e.currentTarget.ownerSVGElement as SVGSVGElement)
-                .getBoundingClientRect();
               const parent = e.currentTarget.ownerSVGElement!.parentElement!;
               const parentRect = parent.getBoundingClientRect();
               const bb = e.currentTarget.getBoundingClientRect();
@@ -328,13 +401,48 @@ function MapaSvg({
                 x: bb.left + bb.width / 2 - parentRect.left,
                 y: bb.top - parentRect.top,
               });
-              void rect;
             }}
             onMouseLeave={() => onHover(null)}
+            onClick={() => onSelect(p.name)}
           />
         );
       })}
     </svg>
+  );
+}
+
+/* ── Overlay helpers ────────────────────────────────────────────────────── */
+
+function OverlayCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="pointer-events-auto w-40 rounded-lg border border-[var(--border)] bg-[var(--elevated)]/85 p-2.5 shadow-[var(--shadow-sm)] backdrop-blur-md">
+      {children}
+    </div>
+  );
+}
+
+function OverlayLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="truncate text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
+      {children}
+    </p>
+  );
+}
+
+function OverlayValue({
+  children,
+  color,
+}: {
+  children: React.ReactNode;
+  color?: string;
+}) {
+  return (
+    <p
+      className="mt-0.5 text-lg font-semibold leading-tight tabular-nums"
+      style={color ? { color } : undefined}
+    >
+      {children}
+    </p>
   );
 }
 

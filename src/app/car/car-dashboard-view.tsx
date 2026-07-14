@@ -517,15 +517,15 @@ function Benchmarking({
                         {pct.toFixed(1)}%
                       </span>
                     </div>
-                    <div className="h-6 overflow-hidden rounded-lg bg-[var(--surface)]">
+                    <div className="h-3 overflow-hidden rounded-full bg-[var(--surface)]">
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${w}%` }}
                         transition={spring.gentle}
-                        className="h-full rounded-lg"
+                        className="h-full rounded-full"
                         style={{
-                          background: isPi ? SICAR : "var(--accent)",
-                          opacity: isPi ? 1 : 0.55,
+                          background: isPi ? SICAR : BUCKET_COLOR.VALIDADO,
+                          opacity: isPi ? 1 : 0.85,
                         }}
                       />
                     </div>
@@ -1065,12 +1065,14 @@ function KpiCard({
       transition={spring.gentle}
       className="rounded-2xl border bg-[var(--elevated)] p-4 shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-md)]"
     >
-      <div className="flex items-start justify-between">
-        <span className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+      <div className="flex items-start justify-between gap-2">
+        {/* min-h reserva altura pra 2 linhas — impede zig-zag do valor
+         *  quando labels vizinhos têm contagens de linha diferentes. */}
+        <span className="line-clamp-2 min-h-[2rem] text-xs uppercase leading-4 tracking-wide text-[var(--text-muted)]">
           {label}
         </span>
         {icon && (
-          <div className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--surface)] text-[var(--text-muted)]">
+          <div className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--surface)] text-[var(--text-muted)]">
             {icon}
           </div>
         )}
