@@ -210,6 +210,92 @@ export async function moveServidorAction(
   });
 }
 
+/**
+ * Adiciona um vínculo de APOIO (isPrincipal=false) do servidor a um núcleo
+ * que NÃO é o principal dele. Impede duplicata (já apoiando) e sobreposição
+ * com o próprio núcleo principal.
+ */
+export async function adicionarApoioAction(input: {
+  servidorId: string;
+  nucleoId: string;
+  motivo?: string;
+}) {
+  return toResult(async () => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Impede apoiar o próprio núcleo principal
+    const [principalAqui] = await db
+      .select({ id: servidorNucleo.id })
+      .from(servidorNucleo)
+      .where(
+        and(
+          eq(servidorNucleo.servidorId, input.servidorId),
+          eq(servidorNucleo.nucleoId, input.nucleoId),
+          eq(servidorNucleo.isPrincipal, true),
+          isNull(servidorNucleo.dataFim),
+        ),
+      )
+      .limit(1);
+    if (principalAqui) {
+      throw new Error("Este servidor já tem este núcleo como principal.");
+    }
+
+    // Impede duplicar apoio ativo
+    const [apoioExistente] = await db
+      .select({ id: servidorNucleo.id })
+      .from(servidorNucleo)
+      .where(
+        and(
+          eq(servidorNucleo.servidorId, input.servidorId),
+          eq(servidorNucleo.nucleoId, input.nucleoId),
+          eq(servidorNucleo.isPrincipal, false),
+          isNull(servidorNucleo.dataFim),
+        ),
+      )
+      .limit(1);
+    if (apoioExistente) {
+      throw new Error("Servidor já está apoiando este núcleo.");
+    }
+
+    const [inserted] = await db
+      .insert(servidorNucleo)
+      .values({
+        servidorId: input.servidorId,
+        nucleoId: input.nucleoId,
+        isPrincipal: false,
+        dataInicio: today,
+        motivo: input.motivo || "apoio manual",
+      })
+      .returning({ id: servidorNucleo.id });
+
+    revalidateAffected();
+    return inserted;
+  });
+}
+
+/** Encerra um vínculo de apoio (seta data_fim = hoje). */
+export async function removerApoioAction(vinculoId: string) {
+  return toResult(async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const [updated] = await db
+      .update(servidorNucleo)
+      .set({ dataFim: today })
+      .where(
+        and(
+          eq(servidorNucleo.id, vinculoId),
+          eq(servidorNucleo.isPrincipal, false),
+          isNull(servidorNucleo.dataFim),
+        ),
+      )
+      .returning({ id: servidorNucleo.id });
+    if (!updated) {
+      throw new Error("Vínculo de apoio não encontrado ou já encerrado.");
+    }
+    revalidateAffected();
+    return updated;
+  });
+}
+
 export async function toggleNucleoAtivoAction(id: string) {
   return toResult(async () => {
     const [current] = await db

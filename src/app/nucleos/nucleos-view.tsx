@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeftRight, Layers, Pencil, Plus, Power } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, HandHelping, Layers, Pencil, Plus, Power } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,17 @@ import { Button } from "@/components/ui/button";
 import { fadeSlideUp, staggerContainer, spring } from "@/lib/design/motion";
 
 import { NucleoFormDialog } from "./nucleo-form-dialog";
+import { ApoiosDialog } from "./apoios-dialog";
 import { toggleNucleoAtivoAction } from "./actions";
+
+export interface ApoiadorRow {
+  vinculoId: string;
+  servidorId: string;
+  nome: string;
+  apelido: string;
+  dataInicio: string;
+  motivo: string | null;
+}
 
 export interface NucleoRow {
   id: string;
@@ -21,6 +31,7 @@ export interface NucleoRow {
   minMembros: number;
   ativo: boolean;
   membrosAtivos: number;
+  apoiadores: ApoiadorRow[];
 }
 
 export interface ServidorOption {
@@ -41,6 +52,7 @@ interface Props {
 export function NucleosView({ nucleos, servidores }: Props) {
   const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState<NucleoRow | null>(null);
+  const [apoiosDe, setApoiosDe] = useState<NucleoRow | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const ativos = nucleos.filter((n) => n.ativo);
@@ -147,9 +159,10 @@ export function NucleosView({ nucleos, servidores }: Props) {
               </p>
             )}
 
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <MiniStat label="Membros ativos" value={n.membrosAtivos} />
-              <MiniStat label="Mínimo funcional" value={n.minMembros} />
+            <div className="mt-5 grid grid-cols-3 gap-3">
+              <MiniStat label="Membros" value={n.membrosAtivos} />
+              <MiniStat label="Apoiadores" value={n.apoiadores.length} />
+              <MiniStat label="Mín. funcional" value={n.minMembros} />
             </div>
 
             <div className="mt-5 flex gap-2">
@@ -161,6 +174,17 @@ export function NucleosView({ nucleos, servidores }: Props) {
               >
                 <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
                 Editar
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="gap-1"
+                onClick={() => setApoiosDe(n)}
+                aria-label={`Gerenciar apoios do núcleo ${n.nome}`}
+                title="Gerenciar apoios"
+              >
+                <HandHelping className="h-3.5 w-3.5" strokeWidth={1.75} />
+                Apoios
               </Button>
               <Button
                 size="sm"
@@ -183,6 +207,13 @@ export function NucleosView({ nucleos, servidores }: Props) {
         nucleo={editing}
         servidores={servidores}
         membrosAtuaisIds={membrosAtuaisIds}
+      />
+
+      <ApoiosDialog
+        open={apoiosDe !== null}
+        onOpenChange={(o) => !o && setApoiosDe(null)}
+        nucleo={apoiosDe}
+        servidores={servidores}
       />
     </motion.div>
   );

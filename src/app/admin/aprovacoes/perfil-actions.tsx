@@ -172,6 +172,16 @@ export function PerfilActions({ perfil, variant, nucleosDisponiveis }: Props) {
 
       {variant === "admin" && (
         <>
+          {!perfil.servidorId && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isPending}
+              onClick={() => setVincularOpen(true)}
+            >
+              Criar servidor
+            </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"
