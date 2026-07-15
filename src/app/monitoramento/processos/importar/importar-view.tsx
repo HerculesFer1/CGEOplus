@@ -100,7 +100,7 @@ export function ImportarView() {
     >
       <motion.div variants={fadeSlideUp}>
         <Link
-          href="/processos"
+          href="/monitoramento/processos"
           className="inline-flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -190,7 +190,7 @@ export function ImportarView() {
               )}
               <div className="mt-6">
                 <Button asChild>
-                  <Link href="/processos">Ver processos importados</Link>
+                  <Link href="/monitoramento/processos">Ver processos importados</Link>
                 </Button>
               </div>
             </CardContent>

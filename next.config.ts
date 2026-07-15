@@ -24,8 +24,12 @@ const nextConfig: NextConfig = {
       { source: "/nucleo/:path*", destination: "/nucleos/:path*", permanent: true },
       { source: "/atividade", destination: "/atividades", permanent: true },
       { source: "/atividade/:path*", destination: "/atividades/:path*", permanent: true },
-      { source: "/processo", destination: "/processos", permanent: true },
-      { source: "/processo/:path*", destination: "/processos/:path*", permanent: true },
+      // Processos foi reorganizado para dentro de Monitoramento (2026-07-15).
+      // Mantemos a URL antiga funcionando para favoritos/bookmarks legados.
+      { source: "/processo", destination: "/monitoramento/processos", permanent: true },
+      { source: "/processo/:path*", destination: "/monitoramento/processos/:path*", permanent: true },
+      { source: "/processos", destination: "/monitoramento/processos", permanent: true },
+      { source: "/processos/:path*", destination: "/monitoramento/processos/:path*", permanent: true },
       { source: "/meta", destination: "/metas", permanent: true },
       { source: "/meta/:path*", destination: "/metas/:path*", permanent: true },
       { source: "/evento", destination: "/eventos", permanent: true },

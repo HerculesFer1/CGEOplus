@@ -40,7 +40,7 @@ export async function createProcessoAction(input: unknown) {
     const parsed = processoCreateSchema.parse(input);
     const svc = getProcessosService();
     const created = await svc.createProcesso(parsed);
-    revalidatePath("/processos");
+    revalidatePath("/monitoramento/processos");
     return created;
   });
 }
@@ -50,8 +50,8 @@ export async function registrarAnaliseAction(input: unknown) {
     const parsed = analiseFromPlanilhaSchema.parse(input);
     const svc = getProcessosService();
     const result = await svc.registrarAnalisePlanilha(parsed);
-    revalidatePath("/processos");
-    revalidatePath(`/processos/${result.processo.id}`);
+    revalidatePath("/monitoramento/processos");
+    revalidatePath(`/monitoramento/processos/${result.processo.id}`);
     return result;
   });
 }
@@ -60,7 +60,7 @@ export async function deleteProcessoAction(id: string) {
   return toResult(async () => {
     const svc = getProcessosService();
     await svc.delete(id);
-    revalidatePath("/processos");
+    revalidatePath("/monitoramento/processos");
     return { id };
   });
 }

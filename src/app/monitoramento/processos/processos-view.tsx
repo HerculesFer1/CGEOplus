@@ -102,7 +102,7 @@ export function ProcessosView({ initialData, servidores, currentFilters }: Props
     const params = new URLSearchParams();
     if (busca.trim()) params.set("busca", busca.trim());
     if (sistema !== "todos") params.set("sistema", sistema);
-    router.push(`/processos?${params.toString()}`);
+    router.push(`/monitoramento/processos?${params.toString()}`);
   }
 
   function goPage(target: number) {
@@ -110,7 +110,7 @@ export function ProcessosView({ initialData, servidores, currentFilters }: Props
     if (busca.trim()) params.set("busca", busca.trim());
     if (sistema !== "todos") params.set("sistema", sistema);
     params.set("page", String(target));
-    router.push(`/processos?${params.toString()}`);
+    router.push(`/monitoramento/processos?${params.toString()}`);
   }
 
   function handleDelete() {
@@ -146,7 +146,7 @@ export function ProcessosView({ initialData, servidores, currentFilters }: Props
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline">
-            <Link href="/processos/importar">
+            <Link href="/monitoramento/processos/importar">
               <FileText className="h-4 w-4" />
               Importar planilha
             </Link>
@@ -217,7 +217,7 @@ export function ProcessosView({ initialData, servidores, currentFilters }: Props
                 <TableRow key={p.id}>
                   <TableCell>
                     <Link
-                      href={`/processos/${p.id}`}
+                      href={`/monitoramento/processos/${p.id}`}
                       className="font-medium hover:underline"
                     >
                       {p.numero}

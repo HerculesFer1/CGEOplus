@@ -111,7 +111,7 @@ export async function commitImportAction(
     const parsed = parsePlanilha(buffer);
     const analistaMap = await buildAnalistaMap();
     const stats = await executarImport(parsed.linhas, analistaMap);
-    revalidatePath("/processos");
+    revalidatePath("/monitoramento/processos");
     return { ok: true, data: stats };
   } catch (err) {
     return {
