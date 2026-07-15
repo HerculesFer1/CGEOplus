@@ -26,6 +26,10 @@ const nextConfig: NextConfig = {
       { source: "/atividade/:path*", destination: "/atividades/:path*", permanent: true },
       { source: "/processo", destination: "/processos", permanent: true },
       { source: "/processo/:path*", destination: "/processos/:path*", permanent: true },
+      { source: "/meta", destination: "/metas", permanent: true },
+      { source: "/meta/:path*", destination: "/metas/:path*", permanent: true },
+      { source: "/evento", destination: "/eventos", permanent: true },
+      { source: "/evento/:path*", destination: "/eventos/:path*", permanent: true },
     ];
   },
 };

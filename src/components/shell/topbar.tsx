@@ -3,10 +3,33 @@ import { Search, Command } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "@/components/brand/logo";
 import { UserMenu } from "@/components/shell/user-menu";
+import {
+  NotificationsBell,
+  type LembreteChip,
+} from "@/components/shell/notifications-bell";
+import { PresentationButton } from "@/components/shell/presentation-button";
 import { getCurrentTestUser } from "@/lib/auth/session";
+import {
+  eventosService,
+  formatarAntecedencia,
+} from "@/lib/services/eventos.service";
 
 export async function Topbar() {
-  const user = await getCurrentTestUser();
+  // Carrega lembretes ativos e o usuário em paralelo. O sino usa os mesmos
+  // dados que a futura tela pós-login vai consumir (project_post_login_home).
+  const [user, ativos] = await Promise.all([
+    getCurrentTestUser(),
+    eventosService.listLembretesAtivos().catch(() => []),
+  ]);
+
+  const lembretes: LembreteChip[] = ativos.map((a) => ({
+    eventoId: a.evento.id,
+    titulo: a.evento.titulo,
+    local: a.evento.local,
+    tipo: a.evento.tipo,
+    inicioIso: a.evento.inicio.toISOString(),
+    antecedenciaLabel: formatarAntecedencia(a.minutosAteEvento),
+  }));
 
   return (
     <header
@@ -30,6 +53,8 @@ export async function Topbar() {
         </kbd>
       </button>
 
+      <NotificationsBell lembretes={lembretes} />
+      <PresentationButton />
       <ThemeToggle />
       <UserMenu user={user} />
     </header>

@@ -15,6 +15,8 @@ import {
   ChevronDown,
   TreePine,
   Folders,
+  Target,
+  CalendarClock,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -50,6 +52,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/nucleos", label: "Núcleos", icon: Layers },
       { href: "/atividades", label: "Atividades", icon: ClipboardList },
       { href: "/processos", label: "Processos", icon: FileText },
+      { href: "/metas", label: "Metas", icon: Target },
+      { href: "/eventos", label: "Eventos", icon: CalendarClock },
     ],
   },
   {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   TrendingUp,
@@ -8,6 +9,9 @@ import {
   Users,
   FileText,
   CheckCircle2,
+  Target,
+  CalendarClock,
+  ArrowRight,
 } from "lucide-react";
 import {
   Bar,
@@ -33,6 +37,13 @@ import type {
   KpiOverview,
   ProdutividadeServidor,
 } from "@/lib/services/dashboard.service";
+import type { MetaComProgresso } from "@/lib/services/metas.service";
+import {
+  TIPO_EVENTO_COR,
+  TIPO_EVENTO_LABEL,
+  type TipoEvento,
+} from "@/lib/validators/evento";
+import { META_METRICA_LABEL } from "@/lib/validators/meta";
 
 const SISTEMA_COLORS: Record<string, string> = {
   SEI: "#0A84FF",
@@ -51,16 +62,44 @@ function shortMes(mes: string): string {
   return `${MONTH_ABBR[m] ?? m}/${ano.slice(2)}`;
 }
 
+interface EventoProximo {
+  id: string;
+  titulo: string;
+  tipo: TipoEvento;
+  local: string | null;
+  inicioIso: string;
+  diaInteiro: boolean;
+}
+
 interface Props {
   kpis: KpiOverview;
   mensal: AnaliseMensal[];
   sistemas: DistribuicaoSistema[];
   topServidores: ProdutividadeServidor[];
+  metasAtivas: MetaComProgresso[];
+  proximosEventos: EventoProximo[];
 }
 
-export function DashboardOverview({ kpis, mensal, sistemas, topServidores }: Props) {
+export function DashboardOverview({
+  kpis,
+  mensal,
+  sistemas,
+  topServidores,
+  metasAtivas,
+  proximosEventos,
+}: Props) {
   const mensalChart = mensal.map((m) => ({ ...m, mesLabel: shortMes(m.mes) }));
   const maxServidor = Math.max(...topServidores.map((s) => s.totalAnalises), 1);
+  const metasPorFarol = metasAtivas.reduce(
+    (acc, m) => {
+      acc[m.farol]++;
+      return acc;
+    },
+    { verde: 0, amarelo: 0, vermelho: 0 } as Record<
+      MetaComProgresso["farol"],
+      number
+    >,
+  );
 
   return (
     <motion.div
@@ -167,6 +206,12 @@ export function DashboardOverview({ kpis, mensal, sistemas, topServidores }: Pro
           </ResponsiveContainer>
         </div>
       </motion.div>
+
+      {/* Metas ativas + Próximos eventos */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <MetasAtivasCard metas={metasAtivas} porFarol={metasPorFarol} />
+        <ProximosEventosCard eventos={proximosEventos} />
+      </div>
 
       {/* Bottom: distribuição + ranking */}
       <div className="grid gap-6 lg:grid-cols-2">
@@ -353,5 +398,240 @@ function LegendDot({ color, label }: { color: string; label: string }) {
       <span className="h-2 w-2 rounded-full" style={{ background: color }} />
       {label}
     </span>
+  );
+}
+
+/* --------------------------------------------------------------------------
+   Metas ativas — resumo com farol + top 3 metas em risco
+   -------------------------------------------------------------------------- */
+
+const FAROL_COR: Record<MetaComProgresso["farol"], string> = {
+  verde: "var(--success)",
+  amarelo: "var(--warning)",
+  vermelho: "var(--danger)",
+};
+
+function MetasAtivasCard({
+  metas,
+  porFarol,
+}: {
+  metas: MetaComProgresso[];
+  porFarol: Record<MetaComProgresso["farol"], number>;
+}) {
+  // Ordena por "urgência": vermelho primeiro, depois amarelo, depois verde;
+  // dentro de cada farol, menor pctAtingido primeiro.
+  const ordenadas = [...metas].sort((a, b) => {
+    const rank = { vermelho: 0, amarelo: 1, verde: 2 } as const;
+    const r = rank[a.farol] - rank[b.farol];
+    if (r !== 0) return r;
+    return a.percentualAtingido - b.percentualAtingido;
+  });
+  const destaque = ordenadas.slice(0, 3);
+
+  return (
+    <motion.div
+      variants={fadeSlideUp}
+      className="rounded-2xl border bg-[var(--elevated)] p-6 shadow-[var(--shadow-sm)]"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+            <Target className="h-4 w-4" strokeWidth={1.75} />
+            Metas ativas
+          </h2>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            {metas.length === 0
+              ? "Nenhuma meta cadastrada para o período atual."
+              : `${metas.length} meta${metas.length === 1 ? "" : "s"} · progresso calculado agora.`}
+          </p>
+        </div>
+        <Link
+          href="/metas"
+          className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
+        >
+          Ver todas
+          <ArrowRight className="h-3 w-3" strokeWidth={2} />
+        </Link>
+      </div>
+
+      {metas.length === 0 ? (
+        <div className="mt-6 rounded-xl border border-dashed p-6 text-center">
+          <Target
+            className="mx-auto h-6 w-6 text-[var(--text-subtle)]"
+            strokeWidth={1.25}
+          />
+          <p className="mt-2 text-xs text-[var(--text-muted)]">
+            Cadastre metas no menu Gestão → Metas para acompanhar aqui.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Contadores por farol */}
+          <div className="mt-5 grid grid-cols-3 gap-3">
+            {(["verde", "amarelo", "vermelho"] as const).map((f) => (
+              <div
+                key={f}
+                className="rounded-xl border bg-[var(--surface)]/40 p-3"
+              >
+                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ backgroundColor: FAROL_COR[f] }}
+                  />
+                  {f === "verde"
+                    ? "No ritmo"
+                    : f === "amarelo"
+                    ? "Atrasadas"
+                    : "Em risco"}
+                </div>
+                <div
+                  className="mt-1 text-2xl font-semibold tabular-nums"
+                  style={{ color: FAROL_COR[f] }}
+                >
+                  {porFarol[f]}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Top 3 mais urgentes */}
+          <div className="mt-5 space-y-3">
+            {destaque.map((m) => {
+              const isTaxa = m.metrica === "taxa_finalizacao";
+              const pctLim = Math.min(100, m.percentualAtingido);
+              return (
+                <div key={m.id} className="space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="min-w-0 text-sm">
+                      <span className="font-medium">{m.alvoNome}</span>
+                      <span className="ml-1 text-xs text-[var(--text-muted)]">
+                        · {META_METRICA_LABEL[m.metrica]} · {m.periodoLabel}
+                      </span>
+                    </div>
+                    <span
+                      className="text-xs font-semibold tabular-nums"
+                      style={{ color: FAROL_COR[m.farol] }}
+                    >
+                      {isTaxa
+                        ? `${m.realizado.toFixed(1)}%`
+                        : `${Math.round(m.realizado)}/${m.valorAlvo}`}
+                    </span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-[var(--surface)]">
+                    <motion.div
+                      className="h-full rounded-full"
+                      style={{ backgroundColor: FAROL_COR[m.farol] }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pctLim}%` }}
+                      transition={{ ...spring.gentle, delay: 0.1 }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </motion.div>
+  );
+}
+
+/* --------------------------------------------------------------------------
+   Próximos eventos — cronograma compacto
+   -------------------------------------------------------------------------- */
+
+const DIA_SEMANA_ABBR = [
+  "dom",
+  "seg",
+  "ter",
+  "qua",
+  "qui",
+  "sex",
+  "sáb",
+] as const;
+
+function ProximosEventosCard({ eventos }: { eventos: EventoProximo[] }) {
+  return (
+    <motion.div
+      variants={fadeSlideUp}
+      className="rounded-2xl border bg-[var(--elevated)] p-6 shadow-[var(--shadow-sm)]"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+            <CalendarClock className="h-4 w-4" strokeWidth={1.75} />
+            Próximos eventos
+          </h2>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            {eventos.length === 0
+              ? "Nenhum evento agendado."
+              : `${eventos.length} evento${eventos.length === 1 ? "" : "s"} no horizonte próximo.`}
+          </p>
+        </div>
+        <Link
+          href="/eventos"
+          className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
+        >
+          Ver agenda
+          <ArrowRight className="h-3 w-3" strokeWidth={2} />
+        </Link>
+      </div>
+
+      {eventos.length === 0 ? (
+        <div className="mt-6 rounded-xl border border-dashed p-6 text-center">
+          <CalendarClock
+            className="mx-auto h-6 w-6 text-[var(--text-subtle)]"
+            strokeWidth={1.25}
+          />
+          <p className="mt-2 text-xs text-[var(--text-muted)]">
+            Cadastre eventos no menu Gestão → Eventos.
+          </p>
+        </div>
+      ) : (
+        <ul className="mt-5 space-y-3">
+          {eventos.map((e) => {
+            const d = new Date(e.inicioIso);
+            const hh = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+            return (
+              <li
+                key={e.id}
+                className="flex items-start gap-3 rounded-xl border-l-2 bg-[var(--surface)]/40 p-3"
+                style={{ borderLeftColor: TIPO_EVENTO_COR[e.tipo] }}
+              >
+                <div className="min-w-[42px] shrink-0 text-center">
+                  <div className="text-[9px] font-semibold uppercase tracking-widest text-[var(--text-muted)]">
+                    {DIA_SEMANA_ABBR[d.getDay()]}
+                  </div>
+                  <div className="text-xl font-semibold tabular-nums leading-none">
+                    {d.getDate()}
+                  </div>
+                  <div className="mt-0.5 text-[10px] uppercase text-[var(--text-subtle)]">
+                    {MONTH_ABBR[String(d.getMonth() + 1).padStart(2, "0")]}
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">
+                    {e.titulo}
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+                    <span className="font-semibold text-[var(--text)]">
+                      {e.diaInteiro ? "dia inteiro" : hh}
+                    </span>
+                    <span>·</span>
+                    <span>{TIPO_EVENTO_LABEL[e.tipo]}</span>
+                    {e.local && (
+                      <>
+                        <span>·</span>
+                        <span className="truncate">{e.local}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </motion.div>
   );
 }
