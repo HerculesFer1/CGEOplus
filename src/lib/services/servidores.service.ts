@@ -26,6 +26,7 @@ export interface ServidorRepository {
   list(): Promise<Servidor[]>;
   findById(id: string): Promise<Servidor | null>;
   findByEmail(email: string): Promise<Servidor | null>;
+  findByMatricula(matricula: string): Promise<Servidor | null>;
   insert(data: Omit<Servidor, "createdAt" | "updatedAt">): Promise<Servidor>;
   update(id: string, patch: Partial<Servidor>): Promise<Servidor>;
   delete(id: string): Promise<void>;
@@ -35,6 +36,13 @@ export class ServidorEmailInUseError extends Error {
   constructor(email: string) {
     super(`E-mail já cadastrado: ${email}`);
     this.name = "ServidorEmailInUseError";
+  }
+}
+
+export class ServidorMatriculaInUseError extends Error {
+  constructor(matricula: string) {
+    super(`Matrícula já cadastrada: ${matricula}`);
+    this.name = "ServidorMatriculaInUseError";
   }
 }
 
@@ -61,8 +69,15 @@ export class ServidoresService {
   async create(input: ServidorCreateInput): Promise<Servidor> {
     const parsed = servidorCreateSchema.parse(input);
 
-    const existing = await this.repo.findByEmail(parsed.email);
-    if (existing) throw new ServidorEmailInUseError(parsed.email);
+    const existingEmail = await this.repo.findByEmail(parsed.email);
+    if (existingEmail) throw new ServidorEmailInUseError(parsed.email);
+
+    if (parsed.matricula) {
+      const existingMatricula = await this.repo.findByMatricula(parsed.matricula);
+      if (existingMatricula) {
+        throw new ServidorMatriculaInUseError(parsed.matricula);
+      }
+    }
 
     return this.repo.insert({
       id: randomUUID(),
@@ -80,6 +95,13 @@ export class ServidoresService {
       const existing = await this.repo.findByEmail(parsed.email);
       if (existing && existing.id !== current.id) {
         throw new ServidorEmailInUseError(parsed.email);
+      }
+    }
+
+    if (parsed.matricula && parsed.matricula !== current.matricula) {
+      const existing = await this.repo.findByMatricula(parsed.matricula);
+      if (existing && existing.id !== current.id) {
+        throw new ServidorMatriculaInUseError(parsed.matricula);
       }
     }
 

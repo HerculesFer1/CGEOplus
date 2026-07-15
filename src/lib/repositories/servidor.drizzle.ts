@@ -173,6 +173,27 @@ export class DrizzleServidorRepository implements ServidorRepository {
     return toServidor(rows[0]);
   }
 
+  async findByMatricula(matricula: string): Promise<Servidor | null> {
+    const trimmed = matricula.trim();
+    if (!trimmed) return null;
+    const rows = await db
+      .select(selectServidorFields())
+      .from(servidores)
+      .leftJoin(
+        servidorNucleo,
+        and(
+          eq(servidorNucleo.servidorId, servidores.id),
+          eq(servidorNucleo.isPrincipal, true),
+          isNull(servidorNucleo.dataFim),
+        ),
+      )
+      .where(eq(servidores.matricula, trimmed))
+      .limit(1);
+
+    if (rows.length === 0) return null;
+    return toServidor(rows[0]);
+  }
+
   async insert(data: Omit<Servidor, "createdAt" | "updatedAt">): Promise<Servidor> {
     const nucleoId = await nucleoIdByName(data.nucleoPrincipal);
 

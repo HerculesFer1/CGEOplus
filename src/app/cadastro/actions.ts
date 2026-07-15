@@ -1,7 +1,10 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
+import { db } from "@/lib/db/client";
+import { profiles } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 
 const DOMINIOS_PERMITIDOS = ["gmail.com", "semarh.gov.br"] as const;
@@ -34,6 +37,23 @@ export async function cadastroAction(
       ok: false,
       error: "Domínio de email não permitido. Use @gmail.com ou @semarh.gov.br.",
     };
+  }
+
+  // Pré-check amigável: matrícula duplicada em profiles.
+  // O índice único ux_profiles_matricula é a defesa final; este check só
+  // troca o erro cru do Postgres por uma mensagem específica no UI.
+  if (matricula) {
+    const [colisao] = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(eq(profiles.matricula, matricula))
+      .limit(1);
+    if (colisao) {
+      return {
+        ok: false,
+        error: `Matrícula ${matricula} já está cadastrada em outra conta.`,
+      };
+    }
   }
 
   const supabase = await createClient();

@@ -10,6 +10,7 @@ import {
 import { getServidoresService } from "@/lib/services/servidores.factory";
 import {
   ServidorEmailInUseError,
+  ServidorMatriculaInUseError,
   ServidorNotFoundError,
 } from "@/lib/services/servidores.service";
 
@@ -29,6 +30,9 @@ function toResult<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
         };
       }
       if (err instanceof ServidorEmailInUseError) {
+        return { ok: false as const, error: err.message };
+      }
+      if (err instanceof ServidorMatriculaInUseError) {
         return { ok: false as const, error: err.message };
       }
       if (err instanceof ServidorNotFoundError) {

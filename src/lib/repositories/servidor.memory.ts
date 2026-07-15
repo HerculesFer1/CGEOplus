@@ -59,6 +59,15 @@ export class InMemoryServidorRepository implements ServidorRepository {
     return null;
   }
 
+  async findByMatricula(matricula: string): Promise<Servidor | null> {
+    const target = matricula.trim();
+    if (!target) return null;
+    for (const s of getStore().values()) {
+      if ((s.matricula ?? "").trim() === target) return s;
+    }
+    return null;
+  }
+
   async insert(data: Omit<Servidor, "createdAt" | "updatedAt">): Promise<Servidor> {
     const now = new Date().toISOString();
     const record: Servidor = { ...data, createdAt: now, updatedAt: now };

@@ -95,17 +95,11 @@ export async function aprovarPerfilAction(
   }
 
   const emailNormalizado = perfil.email.trim().toLowerCase();
-  const [colisao] = await db
-    .select({ id: servidores.id })
-    .from(servidores)
-    .where(eq(servidores.email, emailNormalizado))
-    .limit(1);
-  if (colisao) {
-    return {
-      ok: false,
-      error: `E-mail ${emailNormalizado} já existe em Servidores. Vincule manualmente em vez de criar novo.`,
-    };
-  }
+  const dup = await encontrarColisaoServidor({
+    email: emailNormalizado,
+    matricula: perfil.matricula,
+  });
+  if (dup) return { ok: false, error: dup };
 
   try {
     await db.transaction(async (tx) => {
@@ -153,6 +147,41 @@ export async function aprovarPerfilAction(
 }
 
 /**
+ * Verifica se já existe um servidor com o mesmo email ou matrícula.
+ * Retorna string de erro amigável ou null se está livre.
+ *
+ * A defesa final continua sendo os índices únicos servidores_email_unique
+ * e servidores_matricula_unique — este check só troca o "duplicate key
+ * value violates unique constraint" cru por uma mensagem específica.
+ */
+async function encontrarColisaoServidor(input: {
+  email: string;
+  matricula: string | null;
+}): Promise<string | null> {
+  const [porEmail] = await db
+    .select({ id: servidores.id })
+    .from(servidores)
+    .where(eq(servidores.email, input.email))
+    .limit(1);
+  if (porEmail) {
+    return `E-mail ${input.email} já existe em Servidores. Vincule manualmente em vez de criar novo.`;
+  }
+
+  if (input.matricula) {
+    const [porMatricula] = await db
+      .select({ id: servidores.id })
+      .from(servidores)
+      .where(eq(servidores.matricula, input.matricula))
+      .limit(1);
+    if (porMatricula) {
+      return `Matrícula ${input.matricula} já existe em Servidores.`;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Cria a entrada em `servidores` para um perfil já aprovado que ficou sem
  * vínculo (típico do bootstrap pós-limpeza: Hercules e outros que entraram
  * antes desta funcionalidade existir).
@@ -192,17 +221,11 @@ export async function vincularServidorAction(
   }
 
   const emailNormalizado = perfil.email.trim().toLowerCase();
-  const [colisao] = await db
-    .select({ id: servidores.id })
-    .from(servidores)
-    .where(eq(servidores.email, emailNormalizado))
-    .limit(1);
-  if (colisao) {
-    return {
-      ok: false,
-      error: `E-mail ${emailNormalizado} já existe em Servidores.`,
-    };
-  }
+  const dup = await encontrarColisaoServidor({
+    email: emailNormalizado,
+    matricula: perfil.matricula,
+  });
+  if (dup) return { ok: false, error: dup };
 
   try {
     await db.transaction(async (tx) => {

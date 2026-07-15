@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   ServidoresService,
   ServidorEmailInUseError,
+  ServidorMatriculaInUseError,
   ServidorNotFoundError,
   type ServidorRepository,
   type Servidor,
@@ -23,6 +24,14 @@ class FakeRepo implements ServidorRepository {
     const t = email.toLowerCase();
     for (const s of this.store.values()) {
       if (s.email.toLowerCase() === t) return s;
+    }
+    return null;
+  }
+  async findByMatricula(matricula: string) {
+    const t = matricula.trim();
+    if (!t) return null;
+    for (const s of this.store.values()) {
+      if ((s.matricula ?? "").trim() === t) return s;
     }
     return null;
   }
@@ -76,6 +85,28 @@ describe("ServidoresService", () => {
       await expect(svc.create(validInput)).rejects.toBeInstanceOf(
         ServidorEmailInUseError,
       );
+    });
+
+    it("rejeita matrícula duplicada mesmo com e-mail diferente", async () => {
+      await svc.create({ ...validInput, matricula: "12345" });
+      await expect(
+        svc.create({
+          ...validInput,
+          email: "outra@semarh.gov.br",
+          matricula: "12345",
+        }),
+      ).rejects.toBeInstanceOf(ServidorMatriculaInUseError);
+    });
+
+    it("permite matrícula vazia em múltiplos servidores", async () => {
+      await svc.create({ ...validInput, matricula: "" });
+      await expect(
+        svc.create({
+          ...validInput,
+          email: "outra@semarh.gov.br",
+          matricula: "",
+        }),
+      ).resolves.toBeDefined();
     });
 
     it("valida entrada com Zod", async () => {

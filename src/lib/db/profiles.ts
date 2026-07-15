@@ -60,6 +60,9 @@ export const profiles = pgTable(
     uniqueIndex("ux_profiles_servidor_id")
       .on(t.servidorId)
       .where(sql`${t.servidorId} IS NOT NULL`),
+    uniqueIndex("ux_profiles_matricula")
+      .on(t.matricula)
+      .where(sql`${t.matricula} IS NOT NULL`),
   ],
 );
 
