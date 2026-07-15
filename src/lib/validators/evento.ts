@@ -49,12 +49,16 @@ export const eventoCreateSchema = z
     // Inputs datetime-local chegam como "YYYY-MM-DDTHH:mm" — convertemos para ISO.
     inicio: z.string().min(1, "Informe o início."),
     fim: z.string().min(1, "Informe o fim."),
-    diaInteiro: z.boolean().default(false),
+    diaInteiro: z.boolean(),
     nucleoId: z.string().uuid().optional().or(z.literal("")),
+    // O form sempre envia o array (mesmo vazio). Sem `.default([])` para
+    // manter o input do zod alinhado ao output — evita conflito com o
+    // Resolver do react-hook-form em zod 4. Idem: `z.number()` em vez de
+    // `z.coerce.number()` — no coerce o input do zod vira `unknown`, o que
+    // quebra o typing do Resolver.
     lembretesMin: z
-      .array(z.coerce.number().int().min(0).max(43200))
-      .max(6, "Máximo 6 lembretes por evento.")
-      .default([]),
+      .array(z.number().int().min(0).max(43200))
+      .max(6, "Máximo 6 lembretes por evento."),
   })
   .superRefine((data, ctx) => {
     const ini = new Date(data.inicio);

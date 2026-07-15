@@ -47,16 +47,15 @@ export const metaCreateSchema = z
       .or(z.literal("")),
     alvoSistema: z.enum(META_SISTEMA).optional().or(z.literal("")),
     metrica: z.enum(META_METRICA),
-    valorAlvo: z.coerce
+    // z.number() (não z.coerce) — o form usa register(..., { valueAsNumber:true })
+    // e passa number direto. Coerce quebra o typing do Resolver do RHF em zod 4
+    // (input vira unknown).
+    valorAlvo: z
       .number({ message: "Informe o valor da meta." })
       .positive("Meta deve ser maior que zero."),
-    ano: z.coerce
-      .number()
-      .int()
-      .min(2020)
-      .max(2100),
-    mes: z.coerce.number().int().min(1).max(12).optional().nullable(),
-    semanaIso: z.coerce.number().int().min(1).max(53).optional().nullable(),
+    ano: z.number().int().min(2020).max(2100),
+    mes: z.number().int().min(1).max(12).optional().nullable(),
+    semanaIso: z.number().int().min(1).max(53).optional().nullable(),
     observacao: z.string().trim().max(500).optional().or(z.literal("")),
   })
   .superRefine((data, ctx) => {
@@ -148,7 +147,7 @@ export const metaCreateSchema = z
 export const metaUpdateSchema = z
   .object({
     id: z.string().uuid(),
-    valorAlvo: z.coerce.number().positive().optional(),
+    valorAlvo: z.number().positive().optional(),
     observacao: z.string().trim().max(500).optional().or(z.literal("")),
   });
 
