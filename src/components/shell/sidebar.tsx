@@ -17,12 +17,14 @@ import {
   Folders,
   Target,
   CalendarClock,
+  ShieldCheck,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { Logo } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
 import { spring } from "@/lib/design/motion";
+import { createClient } from "@/lib/supabase/client";
 
 interface NavItem {
   href: string;
@@ -73,8 +75,51 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+const ADMIN_GROUP: NavGroup = {
+  label: "Administração",
+  items: [
+    { href: "/admin/aprovacoes", label: "Aprovações", icon: ShieldCheck },
+  ],
+};
+
+/**
+ * Busca o role do usuário atual via Supabase browser client (RLS policy
+ * `profiles_select_own` libera o próprio profile). Retorna null enquanto carrega
+ * ou se não estiver autenticado — o item "Administração" só aparece pra admin.
+ */
+function useIsAdmin(): boolean {
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!cancelled && data?.role === "admin") setIsAdmin(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return isAdmin;
+}
+
 export function Sidebar() {
   const pathname = usePathname();
+  const isAdmin = useIsAdmin();
   // Search string vem do window só depois do mount — evita hydration mismatch
   // no highlight do sub-item ativo (?programa=X aparece só no client).
   const [search, setSearch] = useState("");
@@ -100,28 +145,54 @@ export function Sidebar() {
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 pb-6">
         {NAV_GROUPS.map((group) => (
-          <div key={group.label}>
-            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
-              {group.label}
-            </p>
-            <ul className="space-y-0.5">
-              {group.items.map((item) => (
-                <NavItemRow
-                  key={item.href}
-                  item={item}
-                  pathname={pathname}
-                  search={search}
-                />
-              ))}
-            </ul>
-          </div>
+          <NavGroupSection
+            key={group.label}
+            group={group}
+            pathname={pathname}
+            search={search}
+          />
         ))}
+        {isAdmin && (
+          <NavGroupSection
+            group={ADMIN_GROUP}
+            pathname={pathname}
+            search={search}
+          />
+        )}
       </nav>
 
       <div className="border-t px-5 py-4 text-[11px] text-[var(--text-subtle)]">
         CGEO+ · v0.1
       </div>
     </aside>
+  );
+}
+
+function NavGroupSection({
+  group,
+  pathname,
+  search,
+}: {
+  group: NavGroup;
+  pathname: string | null;
+  search: string;
+}) {
+  return (
+    <div>
+      <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
+        {group.label}
+      </p>
+      <ul className="space-y-0.5">
+        {group.items.map((item) => (
+          <NavItemRow
+            key={item.href}
+            item={item}
+            pathname={pathname}
+            search={search}
+          />
+        ))}
+      </ul>
+    </div>
   );
 }
 

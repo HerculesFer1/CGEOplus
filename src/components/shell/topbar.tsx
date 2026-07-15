@@ -8,7 +8,7 @@ import {
   type LembreteChip,
 } from "@/components/shell/notifications-bell";
 import { PresentationButton } from "@/components/shell/presentation-button";
-import { getCurrentTestUser } from "@/lib/auth/session";
+import { getCurrentProfile } from "@/lib/auth/session";
 import {
   eventosService,
   formatarAntecedencia,
@@ -18,7 +18,7 @@ export async function Topbar() {
   // Carrega lembretes ativos e o usuário em paralelo. O sino usa os mesmos
   // dados que a futura tela pós-login vai consumir (project_post_login_home).
   const [user, ativos] = await Promise.all([
-    getCurrentTestUser(),
+    getCurrentProfile(),
     eventosService.listLembretesAtivos().catch(() => []),
   ]);
 

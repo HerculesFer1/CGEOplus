@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { ArrowRight, BarChart3, Users, FileText, Sparkles } from "lucide-react";
 
 import { Logo } from "@/components/brand/logo";
@@ -97,19 +98,19 @@ export default function Home() {
             variants={fadeSlideUp}
             className="mt-10 flex flex-wrap items-center justify-center gap-3"
           >
-            <button
-              type="button"
+            <Link
+              href="/login"
               className="group inline-flex items-center gap-2 rounded-full bg-[var(--text)] px-5 py-2.5 text-sm font-medium text-[var(--bg)] transition-transform hover:-translate-y-0.5"
             >
-              Entrar com Google
+              Entrar
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </button>
-            <a
-              href="#recursos"
+            </Link>
+            <Link
+              href="/cadastro"
               className="rounded-full border px-5 py-2.5 text-sm font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
             >
-              Conhecer recursos
-            </a>
+              Solicitar acesso
+            </Link>
           </motion.div>
         </motion.section>
 

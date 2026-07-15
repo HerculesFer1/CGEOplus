@@ -43,33 +43,41 @@ e Ambiental (SEMARH). Uso interno.
      `schema.ts` já está em sync com o banco. **Não usar `drizzle-kit push` sem checar
      drift primeiro.**
 
-3. **3 modos de auth** no `src/proxy.ts` (ordem de precedência):
-   - Cookie assinado HMAC-SHA256 `cgeo_dev_session` — usuários de teste em
-     `src/lib/auth/test-users.ts`, TTL 12h
-   - Sessão Supabase (Google OAuth) — só ativa se `NEXT_PUBLIC_SUPABASE_URL` não for placeholder
-   - `CGEO_AUTH_BYPASS=true` — bypass total (só para explorar UI sem backend)
+3. **Auth com aprovação por admin** — Supabase Auth (email + senha) + tabela
+   `public.profiles` (1:1 com `auth.users` via trigger `handle_new_user`).
+   Ninguém entra sem `approved=true`; o seed `hercules.cgeo@gmail.com` nasce
+   admin+approved automaticamente. Signup restrito a `@gmail.com` e
+   `@semarh.gov.br` (validado no server action). `proxy.ts` (edge) usa RLS
+   policy `profiles_select_own` para checar approved/role sem depender de
+   Drizzle. Aprovações em `/admin/aprovacoes` (só admin acessa).
 
 ## Fase atual
 
-Última entrega foi a **refatoração completa da página `/servidores`**
-(commits `4125b0c`, `cf0599c`, `020aebb`, `086259a`):
+Última entrega foi a **substituição do dev-login por Supabase Auth com aprovação
+de admin** (2026-07-15):
 
-- Grid de mini-cards horizontais agrupados: Gerência primeiro, depois por vínculo
-  (Efetivo → Projeto PSI → Projeto Pilares II → Terceirizado → Suporte)
-- Cards com foto/iniciais na cor do núcleo, apelido + nome, badges de formação e
-  vínculo, faixa festiva de aniversário se ≤5 dias
-- Modal de detalhe (view/editar/remover) reutilizando o form dialog existente
-- Novo enum `Terceirizado` (migration Supabase)
-- Rename display: "Consultor PSI"/"Consultor Pilares II" → "Projeto PSI"/"Projeto Pilares II"
-  **apenas na página `/servidores`** (valor no DB permanece "Consultor…")
-- Calendário custom no tema escuro com grids de popover (mês 3×4, ano 5×2 com nav de década)
-- Página `not-found.tsx` custom no tema
-- Redirects singular→plural em `next.config.ts` (`/servidor` → `/servidores` etc.)
+- Migration `create_profiles_auth_approval` + `profiles_rls_read_own` no Supabase:
+  enum `user_role` (`admin`/`servidor`), tabela `profiles` (1:1 com `auth.users`),
+  trigger `handle_new_user` que promove `hercules.cgeo@gmail.com` a admin+approved
+  automaticamente, RLS policy `profiles_select_own` para o proxy edge
+- `/login` reescrito para email + senha (Supabase); `/cadastro` novo com Zod
+  validando domínio (@gmail.com | @semarh.gov.br) no server action
+- `/aguardando-aprovacao` (server component) mostra "cadastro sob análise" para
+  usuários logados mas com approved=false
+- `/admin/aprovacoes` com 3 seções (pendentes, servidores ativos, admins) e ações
+  aprovar/revogar/recusar; layout gated por `role='admin'` (defesa em profundidade
+  além do proxy)
+- `src/lib/supabase/admin.ts` novo — cliente service_role para deleteUser
+- `src/lib/auth/actions.ts` novo — `signOutAction` reusável
+- `session.ts` refatorado: agora `getCurrentProfile()` retorna `Profile` do banco
+  (não mais TestUser mockado)
+- Deletados: `src/app/dev-login/*`, `src/lib/auth/test-users.ts`,
+  `CGEO_SESSION_SECRET` e `CGEO_AUTH_BYPASS` das docs
+- `proxy.ts` simplificado: só Supabase, checa approved + role, sem branches de dev
 
-**Próxima frente:** **Google OAuth institucional.** Infraestrutura de código já está
-pronta (`/login`, `/auth/callback`, `supabase/{client,server}.ts`) — falta configurar
-o provider no Google Cloud + Supabase Dashboard, testar o fluxo e possivelmente
-restringir domínio (`@semarh.gov.br`).
+**Próxima frente:** validar fluxo end-to-end em produção (Hercules cadastra
+`hercules.cgeo@gmail.com`, vira admin automático, aprova segundo usuário de teste).
+Depois: redesign da home page com wordmark animado CGEO+ (planeta + órbitas).
 
 ## Variáveis de ambiente
 
@@ -82,8 +90,6 @@ Localmente em `.env.local` (nunca commitar); em produção em Vercel → Setting
   **Pooler correto é `aws-1-sa-east-1`**, não `aws-0`. Formato:
   `postgresql://postgres.saobnvhhewwpzwsgyuaa:SENHA@aws-1-sa-east-1.pooler.supabase.com:5432/postgres`.
   Senhas com caracteres especiais (`!` etc.) precisam URL-encode (ex.: `%21`).
-- `CGEO_SESSION_SECRET` — 32+ chars aleatórios para HMAC do dev-login.
-  Gere com `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 
 ## Enums do banco (para não errar em type checks)
 
