@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { ShieldCheck, UserCheck, Users2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -12,17 +12,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { db } from "@/lib/db/client";
-import { profiles } from "@/lib/db/schema";
+import { nucleos, profiles } from "@/lib/db/schema";
 
 import { PerfilActions } from "./perfil-actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AprovacoesPage() {
-  const todos = await db
-    .select()
-    .from(profiles)
-    .orderBy(desc(profiles.createdAt));
+  const [todos, nucleosDisponiveis] = await Promise.all([
+    db.select().from(profiles).orderBy(desc(profiles.createdAt)),
+    db
+      .select({ id: nucleos.id, nome: nucleos.nome })
+      .from(nucleos)
+      .where(eq(nucleos.ativo, true))
+      .orderBy(asc(nucleos.nome)),
+  ]);
 
   const pendentes = todos.filter((p) => !p.approved);
   const ativos = todos.filter((p) => p.approved && p.role === "servidor");
@@ -33,7 +37,8 @@ export default async function AprovacoesPage() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Aprovações</h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Aprove ou recuse solicitações de acesso e gerencie usuários ativos.
+          Aprove ou recuse solicitações de acesso, defina o nível e vincule ao
+          catálogo operacional de servidores.
         </p>
       </header>
 
@@ -44,7 +49,11 @@ export default async function AprovacoesPage() {
         empty="Nenhuma solicitação aguardando aprovação."
       >
         {pendentes.length > 0 && (
-          <PerfilTable perfis={pendentes} variant="pendente" />
+          <PerfilTable
+            perfis={pendentes}
+            variant="pendente"
+            nucleosDisponiveis={nucleosDisponiveis}
+          />
         )}
       </Section>
 
@@ -55,7 +64,11 @@ export default async function AprovacoesPage() {
         empty="Nenhum servidor com acesso ativo."
       >
         {ativos.length > 0 && (
-          <PerfilTable perfis={ativos} variant="ativo" />
+          <PerfilTable
+            perfis={ativos}
+            variant="ativo"
+            nucleosDisponiveis={nucleosDisponiveis}
+          />
         )}
       </Section>
 
@@ -66,7 +79,11 @@ export default async function AprovacoesPage() {
         empty="Nenhum administrador cadastrado."
       >
         {admins.length > 0 && (
-          <PerfilTable perfis={admins} variant="admin" />
+          <PerfilTable
+            perfis={admins}
+            variant="admin"
+            nucleosDisponiveis={nucleosDisponiveis}
+          />
         )}
       </Section>
     </div>
@@ -106,21 +123,31 @@ function Section({
   );
 }
 
+interface Nucleo {
+  id: string;
+  nome: string;
+}
+
+interface Perfil {
+  id: string;
+  email: string;
+  nome: string;
+  matricula: string | null;
+  cargo: string | null;
+  role: "admin" | "servidor";
+  createdAt: Date;
+  approvedAt: Date | null;
+  servidorId: string | null;
+}
+
 function PerfilTable({
   perfis,
   variant,
+  nucleosDisponiveis,
 }: {
-  perfis: Array<{
-    id: string;
-    email: string;
-    nome: string;
-    matricula: string | null;
-    cargo: string | null;
-    role: "admin" | "servidor";
-    createdAt: Date;
-    approvedAt: Date | null;
-  }>;
+  perfis: Perfil[];
   variant: "pendente" | "ativo" | "admin";
+  nucleosDisponiveis: Nucleo[];
 }) {
   const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
@@ -136,6 +163,7 @@ function PerfilTable({
           <TableHead>Email</TableHead>
           <TableHead>Cargo</TableHead>
           <TableHead>Matrícula</TableHead>
+          <TableHead>Vínculo</TableHead>
           <TableHead>
             {variant === "pendente" ? "Solicitado em" : "Aprovado em"}
           </TableHead>
@@ -145,7 +173,7 @@ function PerfilTable({
       <TableBody>
         {perfis.length === 0 ? (
           <TableRow>
-            <TableEmpty colSpan={6}>Vazio.</TableEmpty>
+            <TableEmpty colSpan={7}>Vazio.</TableEmpty>
           </TableRow>
         ) : (
           perfis.map((p) => (
@@ -162,6 +190,15 @@ function PerfilTable({
               <TableCell className="text-[var(--text-muted)]">
                 {p.matricula ?? "—"}
               </TableCell>
+              <TableCell>
+                {p.servidorId ? (
+                  <Badge variant="success">Servidor</Badge>
+                ) : variant === "pendente" ? (
+                  <span className="text-xs text-[var(--text-subtle)]">—</span>
+                ) : (
+                  <Badge variant="warning">Sem servidor</Badge>
+                )}
+              </TableCell>
               <TableCell className="text-[var(--text-muted)]">
                 {dateFormatter.format(
                   variant === "pendente" ? p.createdAt : (p.approvedAt ?? p.createdAt),
@@ -170,9 +207,14 @@ function PerfilTable({
               <TableCell className="text-right">
                 <div className="flex justify-end">
                   <PerfilActions
-                    perfilId={p.id}
-                    nome={p.nome}
+                    perfil={{
+                      id: p.id,
+                      nome: p.nome,
+                      cargo: p.cargo,
+                      servidorId: p.servidorId,
+                    }}
                     variant={variant}
+                    nucleosDisponiveis={nucleosDisponiveis}
                   />
                 </div>
               </TableCell>

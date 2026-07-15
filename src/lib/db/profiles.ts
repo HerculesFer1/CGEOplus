@@ -16,9 +16,12 @@ import {
   timestamp,
   pgEnum,
   index,
+  uniqueIndex,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+
+import { servidores } from "./schema";
 
 export const userRoleEnum = pgEnum("user_role", ["admin", "servidor"]);
 
@@ -36,6 +39,10 @@ export const profiles = pgTable(
     approvedBy: uuid("approved_by").references((): AnyPgColumn => profiles.id, {
       onDelete: "set null",
     }),
+    // Vínculo com o catálogo operacional. NULL até o admin decidir na aprovação.
+    servidorId: uuid("servidor_id").references(() => servidores.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -50,6 +57,9 @@ export const profiles = pgTable(
     index("ix_profiles_role_admin")
       .on(t.role)
       .where(sql`${t.role} = 'admin'`),
+    uniqueIndex("ux_profiles_servidor_id")
+      .on(t.servidorId)
+      .where(sql`${t.servidorId} IS NOT NULL`),
   ],
 );
 
