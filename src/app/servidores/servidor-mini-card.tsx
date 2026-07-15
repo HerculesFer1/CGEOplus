@@ -19,6 +19,7 @@ const VINCULO_VARIANT: Record<string, "accent" | "outline" | "default"> = {
   Efetivo: "accent",
   "Consultor PSI": "outline",
   "Consultor Pilares II": "outline",
+  "REDD+": "outline",
   Terceirizado: "outline",
   Suporte: "default",
 };

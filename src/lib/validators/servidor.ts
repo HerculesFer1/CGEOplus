@@ -9,6 +9,7 @@ export const TIPO_VINCULO = [
   "Efetivo",
   "Consultor PSI",
   "Consultor Pilares II",
+  "REDD+",
   "Terceirizado",
   "Suporte",
 ] as const;

@@ -42,6 +42,7 @@ type DbVinculo =
   | "Consultor"
   | "Consultor PSI"
   | "Consultor Pilares II"
+  | "REDD+"
   | "Terceirizado"
   | "Suporte";
 
