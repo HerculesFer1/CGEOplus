@@ -20,6 +20,7 @@ export async function proxy(request: NextRequest) {
     path === "/cadastro" ||
     path === "/esqueci-senha" ||
     path.startsWith("/auth/") ||
+    path.startsWith("/api/cron/") ||
     path.startsWith("/_next") ||
     path.startsWith("/favicon");
 

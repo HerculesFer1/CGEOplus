@@ -322,3 +322,9 @@ export * from "./profiles";
    ========================================================================== */
 
 export * from "./historico";
+
+/* ==========================================================================
+   MONITORAMENTO EXTERNO — MapBiomas · PRODES · Queimadas (fontes federais)
+   ========================================================================== */
+
+export * from "./monitoramento-externo";

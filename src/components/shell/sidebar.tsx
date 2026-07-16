@@ -18,6 +18,9 @@ import {
   Target,
   CalendarClock,
   ShieldCheck,
+  Sprout,
+  Satellite,
+  Flame,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -71,6 +74,9 @@ const NAV_GROUPS: NavGroup[] = [
       },
       { href: "/monitoramento/processos", label: "Processos", icon: FileText },
       { href: "/car", label: "SICAR / CAR", icon: TreePine },
+      { href: "/monitoramento/mapbiomas", label: "Alertas MapBiomas", icon: Sprout },
+      { href: "/monitoramento/prodes", label: "PRODES Cerrado", icon: Satellite },
+      { href: "/monitoramento/queimadas", label: "Queimadas INPE", icon: Flame },
     ],
   },
 ];

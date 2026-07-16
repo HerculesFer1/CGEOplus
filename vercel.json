@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/monit/mapbiomas",
+      "schedule": "0 4 6 * *"
+    },
+    {
+      "path": "/api/cron/monit/prodes",
+      "schedule": "0 4 2 10 *"
+    },
+    {
+      "path": "/api/cron/monit/queimadas",
+      "schedule": "0 4 15 * *"
+    }
+  ]
+}
