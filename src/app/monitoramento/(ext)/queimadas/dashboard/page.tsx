@@ -43,17 +43,26 @@ export default async function Page({ searchParams }: PageProps) {
     : anosDisponiveis.at(-1)!;
 
   const params = await searchParams;
-  const anoQuery = params.ano ? Number(params.ano) : null;
-  const anoAtual =
-    anoQuery !== null && anosDisponiveis.includes(anoQuery) ? anoQuery : anoDefault;
+  const rawAno = params.ano;
+  const anoAtual: number | "all" =
+    rawAno === "all"
+      ? "all"
+      : rawAno && anosDisponiveis.includes(Number(rawAno))
+        ? Number(rawAno)
+        : anoDefault;
+
+  // Queries que precisam de um ano específico usam o retrato mais recente
+  // quando "all" — evita agregar município × ano no mapa, o que seria
+  // ambíguo (é a intensidade por município ao longo dos anos?).
+  const anoConsultas = anoAtual === "all" ? anosDisponiveis.at(-1)! : anoAtual;
 
   const [top, emAlerta, todos, sazonalidade, recorrentes, ipa] = await Promise.all([
-    getQueimadasTopMunicipios(anoAtual, 20),
-    getQueimadasMunicipiosEmAlerta(anoAtual),
-    getQueimadasMunicipiosAno(anoAtual),
-    getQueimadasSazonalidadePorClasse(anoAtual),
+    getQueimadasTopMunicipios(anoConsultas, 20),
+    getQueimadasMunicipiosEmAlerta(anoConsultas),
+    getQueimadasMunicipiosAno(anoConsultas),
+    getQueimadasSazonalidadePorClasse(anoConsultas),
     getQueimadasRecorrentes(),
-    getIpaRanking(anoAtual, 15),
+    getIpaRanking(anoConsultas, 15),
   ]);
 
   return (
@@ -67,7 +76,7 @@ export default async function Page({ searchParams }: PageProps) {
       ipaRanking={ipa}
       anoAtual={anoAtual}
       anosDisponiveis={anosDisponiveis}
-      anoParcial={anoAtual > anoCompleto}
+      anoParcial={anoAtual !== "all" && anoAtual > anoCompleto}
     />
   );
 }

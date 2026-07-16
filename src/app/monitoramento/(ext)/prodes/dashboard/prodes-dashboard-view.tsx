@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import { AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   Bar,
@@ -17,6 +16,7 @@ import {
   YAxis,
 } from "recharts";
 
+import { AnoDropdown } from "@/components/monit-ext/ano-dropdown";
 import { AssinaturaAmbientalCard } from "@/components/monit-ext/assinatura-ambiental";
 import { MapaChoropleth } from "@/components/monit-ext/mapa-choropleth";
 import { Slide, SlideDeck } from "@/components/monit-ext/slide-deck";
@@ -85,7 +85,8 @@ interface Props {
   cobertura: Cobertura[];
   topMunicipios: TopMun[];
   ipaRanking: IpaMunicipio[];
-  anoAtual: number;
+  /** Ano selecionado ou "all" (multi-ano agregado). */
+  anoAtual: number | "all";
   anosDisponiveis: number[];
   anoParcial: boolean;
 }
@@ -113,9 +114,15 @@ export function ProdesDashboardView({
   // Ciclos "publicados" = com validação cruzada concluída (n_total > 0).
   // O ciclo do ano corrente pode existir com n_total=0 até o PRODES publicar (out).
   const publicados = ciclos.filter((c) => c.nTotal > 0);
-  // "atual" = ciclo do ano selecionado (se publicado). Fallback: último
-  // publicado disponível.
-  const atual = publicados.find((c) => c.anoProdesRef === anoAtual) ?? publicados.at(-1) ?? ciclos.at(-1)!;
+  // Quando "Todos os anos" ativo, `atual` vira o agregado dos ciclos
+  // publicados (concordância recalculada). Caso contrário, é o ciclo do
+  // ano selecionado (fallback pro último publicado).
+  const atual =
+    anoAtual === "all"
+      ? agregarCiclosProdes(publicados)
+      : publicados.find((c) => c.anoProdesRef === anoAtual) ??
+        publicados.at(-1) ??
+        ciclos.at(-1)!;
   // Totalizadores só somam ciclos publicados — o card diz "acumulados nos
   // ciclos publicados" e incluir 2026 (só sem_prodes=747) contaria como
   // discordância o que na verdade é ciclo em aberto.
@@ -124,7 +131,17 @@ export function ProdesDashboardView({
   const disc = publicados.reduce((s, c) => s + c.nDiscordantes, 0);
   const sem = publicados.reduce((s, c) => s + c.nSemProdes, 0);
   const base = publicados.find((c) => c.anoProdesRef === ANO_MIN) ?? publicados[0];
-  const topMunicipiosAno = topMunicipios.filter((m) => m.ano === anoAtual);
+  const labelAno = anoAtual === "all" ? "Todos os anos" : String(anoAtual);
+  const anoConcreto: number =
+    anoAtual === "all"
+      ? publicados.at(-1)?.anoProdesRef ?? new Date().getFullYear()
+      : anoAtual;
+  // Em "Todos os anos", mostra todos os municípios (sem filtro por ano).
+  // Em ano específico, filtra os que têm registro no ciclo daquele ano.
+  const topMunicipiosAno =
+    anoAtual === "all"
+      ? topMunicipios
+      : topMunicipios.filter((m) => m.ano === anoAtual);
 
   return (
     <div className="pb-16">
@@ -135,7 +152,7 @@ export function ProdesDashboardView({
           </div>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">
             <span style={{ color: COR }}>PRODES</span> Cerrado{" "}
-            <span className="text-[var(--text-muted)]">— {anoAtual}</span>
+            <span className="text-[var(--text-muted)]">— {labelAno}</span>
           </h1>
           {anoParcial && (
             <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-500">
@@ -144,7 +161,7 @@ export function ProdesDashboardView({
             </p>
           )}
         </div>
-        <AnoSeletor anos={anosDisponiveis} anoAtual={anoAtual} />
+        <AnoDropdown anos={anosDisponiveis} anoAtual={anoAtual} corTema={COR} />
       </header>
 
       <SlideDeck backHref="/monitoramento/prodes" toc={TOC} corTema={COR} tituloModulo="PRODES">
@@ -228,11 +245,11 @@ export function ProdesDashboardView({
           index={5}
           total={TOC.length}
           title="Top municípios validados"
-          subtitle={`Onde MapBiomas e PRODES mais concordam sobre desmatamento em ${anoAtual} — maior área com dupla confirmação.`}
+          subtitle={`Onde MapBiomas e PRODES mais concordam sobre desmatamento em ${labelAno} — maior área com dupla confirmação.`}
           corTema={COR}
           fluid
         >
-          <MapaMunicipalProdes topMunicipios={topMunicipiosAno} anoAtual={anoAtual} />
+          <MapaMunicipalProdes topMunicipios={topMunicipiosAno} anoAtual={anoConcreto} />
           <NotaContexto>
             Escala log de área validada — municípios sem alerta ficam em
             cinza claro. A validação cruzada mostra concentração espacial
@@ -268,7 +285,7 @@ export function ProdesDashboardView({
           corTema={COR}
           fluid
         >
-          <IpaRanking ipa={ipaRanking} anoAtual={anoAtual} />
+          <IpaRanking ipa={ipaRanking} anoAtual={anoConcreto} />
           <NotaContexto>
             IPA (0-100) = 50% <strong>IPI</strong> (Índice de Pressão
             Irregular · MapBiomas) + 30% <strong>Fogo</strong> em áreas
@@ -290,29 +307,34 @@ export function ProdesDashboardView({
    Seletor de ano + Mapa municipal + Comparativo 2022
    ========================================================================== */
 
-function AnoSeletor({ anos, anoAtual }: { anos: number[]; anoAtual: number }) {
-  const router = useRouter();
-  return (
-    <div className="flex flex-wrap items-center gap-1 rounded-full border bg-[var(--surface)] p-1">
-      <span className="px-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
-        Ano
-      </span>
-      {anos.map((a) => (
-        <button
-          key={a}
-          onClick={() => router.push(`?ano=${a}`, { scroll: false })}
-          className={`rounded-full px-3 py-1 text-[12px] font-medium tabular-nums transition-colors ${
-            a === anoAtual
-              ? "bg-[var(--elevated)] text-[var(--text)] shadow-[var(--shadow-sm)]"
-              : "text-[var(--text-muted)] hover:text-[var(--text)]"
-          }`}
-          style={a === anoAtual ? { color: COR } : undefined}
-        >
-          {a}
-        </button>
-      ))}
-    </div>
-  );
+/** Agrega os ciclos publicados num ciclo sintético para o modo Todos os anos. */
+function agregarCiclosProdes(publicados: Ciclo[]): Ciclo {
+  const anos = publicados.map((c) => c.anoProdesRef);
+  const anoLabel = anos.length > 1 ? Math.min(...anos) : (anos[0] ?? 0);
+  const nTotal = publicados.reduce((s, c) => s + c.nTotal, 0);
+  const nConcordantes = publicados.reduce((s, c) => s + c.nConcordantes, 0);
+  const nDiscordantes = publicados.reduce((s, c) => s + c.nDiscordantes, 0);
+  const nSemProdes = publicados.reduce((s, c) => s + c.nSemProdes, 0);
+  const pctConcordancia =
+    nTotal > 0 ? ((nConcordantes / nTotal) * 100).toFixed(2) : "0.00";
+  // Média simples da cobertura entre ciclos com valor — evita pesar demais
+  // ciclos com poucas amostras.
+  const coberturas = publicados
+    .map((c) => Number(c.mediaCoberturaPct ?? 0))
+    .filter((v) => v > 0);
+  const mediaCoberturaPct =
+    coberturas.length > 0
+      ? (coberturas.reduce((s, v) => s + v, 0) / coberturas.length).toFixed(2)
+      : null;
+  return {
+    anoProdesRef: anoLabel,
+    nTotal,
+    nConcordantes,
+    nDiscordantes,
+    nSemProdes,
+    pctConcordancia,
+    mediaCoberturaPct,
+  };
 }
 
 function MapaMunicipalProdes({

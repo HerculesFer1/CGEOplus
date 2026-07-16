@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import { AlertTriangle, ExternalLink } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   Area,
@@ -20,6 +19,7 @@ import {
   YAxis,
 } from "recharts";
 
+import { AnoDropdown } from "@/components/monit-ext/ano-dropdown";
 import { AssinaturaAmbientalCard } from "@/components/monit-ext/assinatura-ambiental";
 import { MapaChoropleth } from "@/components/monit-ext/mapa-choropleth";
 import { Slide, SlideDeck } from "@/components/monit-ext/slide-deck";
@@ -78,7 +78,8 @@ interface Props {
   sazonalidade: SazonalidadeRow[];
   recorrentes: Recorrente[];
   ipaRanking: IpaMunicipio[];
-  anoAtual: number;
+  /** Ano selecionado ou "all" (multi-ano agregado). */
+  anoAtual: number | "all";
   anosDisponiveis: number[];
   anoParcial: boolean;
 }
@@ -122,16 +123,23 @@ export function QueimadasDashboardView({
   anosDisponiveis,
   anoParcial,
 }: Props) {
-  // "atual" agora é o ano SELECIONADO — não o último da série. Buscamos na
-  // série pelo ano selecionado; se não estiver (não deveria acontecer),
-  // caímos no último. Isso evita mostrar 2026 parcial quando o usuário está
-  // olhando 2025.
-  const atual = serie.find((s) => s.ano === anoAtual) ?? serie.at(-1)!;
+  // Quando "Todos os anos" ativo, `atual` vira o agregado da série (soma
+  // dos KPIs). Caso contrário, é a linha do ano selecionado.
+  const atual =
+    anoAtual === "all"
+      ? agregarSerieQueimadas(serie)
+      : serie.find((s) => s.ano === anoAtual) ?? serie.at(-1)!;
   const areaAtual = Number(atual.areaQueimadaHa);
   const areaEmAlerta = emAlerta.reduce(
     (s, m) => s + Number(m.areaQueimadaTotalHa),
     0,
   );
+  const labelAno = anoAtual === "all" ? "Todos os anos" : String(anoAtual);
+  // Ano concreto para subcomponentes que exigem um ano específico
+  // (banner de alerta, IPA, metodologia): "all" resolve pro último ano
+  // com dados, que é o retrato mais recente.
+  const anoConcreto: number =
+    anoAtual === "all" ? serie.at(-1)?.ano ?? new Date().getFullYear() : anoAtual;
 
   return (
     <div className="pb-16">
@@ -142,7 +150,7 @@ export function QueimadasDashboardView({
           </div>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">
             <span style={{ color: COR }}>Queimadas</span> INPE{" "}
-            <span className="text-[var(--text-muted)]">— {anoAtual}</span>
+            <span className="text-[var(--text-muted)]">— {labelAno}</span>
           </h1>
           {anoParcial && (
             <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-500">
@@ -151,7 +159,7 @@ export function QueimadasDashboardView({
             </p>
           )}
         </div>
-        <AnoSeletor anos={anosDisponiveis} anoAtual={anoAtual} />
+        <AnoDropdown anos={anosDisponiveis} anoAtual={anoAtual} corTema={COR} />
       </header>
 
       <SlideDeck backHref="/monitoramento/queimadas" toc={TOC} corTema={COR} tituloModulo="Queimadas">
@@ -177,7 +185,7 @@ export function QueimadasDashboardView({
             prioritária. É o filtro que o CGEO+ usa para acionar triagem de
             campo.
           </NotaContexto>
-          <AlertaBanner emAlerta={emAlerta} anoAtual={anoAtual} />
+          <AlertaBanner emAlerta={emAlerta} anoAtual={anoConcreto} />
         </Slide>
 
         {/* SLIDE 2 — POR CLASSE AHP */}
@@ -204,7 +212,7 @@ export function QueimadasDashboardView({
           index={3}
           total={TOC.length}
           title="Panorama municipal"
-          subtitle={`Área queimada por município em ${anoAtual}. Ranking marca em vermelho os municípios em alerta CGEO+ (AHP 4-5 + >50% prioritária).`}
+          subtitle={`Área queimada por município em ${labelAno}. Ranking marca em vermelho os municípios em alerta CGEO+ (AHP 4-5 + >50% prioritária).`}
           corTema={COR}
           fluid
         >
@@ -275,7 +283,7 @@ export function QueimadasDashboardView({
           corTema={COR}
           fluid
         >
-          <IpaRanking ipa={ipaRanking} anoAtual={anoAtual} />
+          <IpaRanking ipa={ipaRanking} anoAtual={anoConcreto} />
           <NotaContexto>
             IPA (0-100) = 50% <strong>IPI</strong> (Índice de Pressão
             Irregular · MapBiomas) + 30% <strong>Fogo</strong> em áreas
@@ -300,7 +308,7 @@ export function QueimadasDashboardView({
           corTema={COR}
           fluid
         >
-          <Metodologia anoAtual={anoAtual} />
+          <Metodologia anoAtual={anoConcreto} />
         </Slide>
       </SlideDeck>
     </div>
@@ -311,29 +319,19 @@ export function QueimadasDashboardView({
    Seletor de ano (chip switch)
    ========================================================================== */
 
-function AnoSeletor({ anos, anoAtual }: { anos: number[]; anoAtual: number }) {
-  const router = useRouter();
-  return (
-    <div className="flex flex-wrap items-center gap-1 rounded-full border bg-[var(--surface)] p-1">
-      <span className="px-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
-        Ano
-      </span>
-      {anos.map((a) => (
-        <button
-          key={a}
-          onClick={() => router.push(`?ano=${a}`, { scroll: false })}
-          className={`rounded-full px-3 py-1 text-[12px] font-medium tabular-nums transition-colors ${
-            a === anoAtual
-              ? "bg-[var(--elevated)] text-[var(--text)] shadow-[var(--shadow-sm)]"
-              : "text-[var(--text-muted)] hover:text-[var(--text)]"
-          }`}
-          style={a === anoAtual ? { color: COR } : undefined}
-        >
-          {a}
-        </button>
-      ))}
-    </div>
-  );
+/** Agrega a série anual em um "ano sintético" para o modo Todos os anos. */
+function agregarSerieQueimadas(serie: SerieAno[]): SerieAno {
+  const anos = serie.map((s) => s.ano);
+  const anoLabel = anos.length > 1 ? Math.min(...anos) : (anos[0] ?? 0);
+  return {
+    ano: anoLabel,
+    areaQueimadaHa: String(serie.reduce((s, r) => s + Number(r.areaQueimadaHa ?? 0), 0)),
+    nCicatrizes: serie.reduce((s, r) => s + r.nCicatrizes, 0),
+    nMunicipiosAfetados: Math.max(
+      0,
+      ...serie.map((r) => r.nMunicipiosAfetados),
+    ),
+  };
 }
 
 /* ==========================================================================

@@ -42,15 +42,24 @@ export default async function Page({ searchParams }: PageProps) {
     : anosDisponiveis.at(-1)!;
 
   const params = await searchParams;
-  const anoQuery = params.ano ? Number(params.ano) : null;
-  const anoAtual =
-    anoQuery !== null && anosDisponiveis.includes(anoQuery) ? anoQuery : anoDefault;
+  const rawAno = params.ano;
+  const anoAtual: number | "all" =
+    rawAno === "all"
+      ? "all"
+      : rawAno && anosDisponiveis.includes(Number(rawAno))
+        ? Number(rawAno)
+        : anoDefault;
+
+  // Para queries que precisam de um ano específico (mapa, ranking, IPA),
+  // resolvemos "all" ao último ano com dados — o "retrato mais recente"
+  // é mais útil do que agregar município × ano no mapa.
+  const anoConsultas = anoAtual === "all" ? anosDisponiveis.at(-1)! : anoAtual;
 
   const [mensal, top, ipa, municipios] = await Promise.all([
     getMapbiomasSerieMensal(),
-    getMapbiomasTopMunicipios(anoAtual, 20),
-    getIpaRanking(anoAtual, 15),
-    getMapbiomasMunicipiosAno(anoAtual),
+    getMapbiomasTopMunicipios(anoConsultas, 20),
+    getIpaRanking(anoConsultas, 15),
+    getMapbiomasMunicipiosAno(anoConsultas),
   ]);
 
   return (
@@ -62,7 +71,7 @@ export default async function Page({ searchParams }: PageProps) {
       ipaRanking={ipa}
       anoAtual={anoAtual}
       anosDisponiveis={anosDisponiveis}
-      anoParcial={anoAtual > anoCompleto}
+      anoParcial={anoAtual !== "all" && anoAtual > anoCompleto}
     />
   );
 }

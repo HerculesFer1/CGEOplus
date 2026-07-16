@@ -54,11 +54,16 @@ export default async function Page({ searchParams }: PageProps) {
     ciclos.at(-1)!.anoProdesRef;
 
   const params = await searchParams;
-  const anoQuery = params.ano ? Number(params.ano) : null;
-  const anoAtual =
-    anoQuery !== null && anosDisponiveis.includes(anoQuery) ? anoQuery : anoDefault;
+  const rawAno = params.ano;
+  const anoAtual: number | "all" =
+    rawAno === "all"
+      ? "all"
+      : rawAno && anosDisponiveis.includes(Number(rawAno))
+        ? Number(rawAno)
+        : anoDefault;
 
-  const ipa = await getIpaRanking(anoAtual, 15);
+  const anoConsultas = anoAtual === "all" ? anoDefault : anoAtual;
+  const ipa = await getIpaRanking(anoConsultas, 15);
 
   return (
     <ProdesDashboardView
@@ -69,7 +74,7 @@ export default async function Page({ searchParams }: PageProps) {
       ipaRanking={ipa}
       anoAtual={anoAtual}
       anosDisponiveis={anosDisponiveis}
-      anoParcial={anoAtual > anoCompleto}
+      anoParcial={anoAtual !== "all" && anoAtual > anoCompleto}
     />
   );
 }

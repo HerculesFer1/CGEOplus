@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import { AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   Area,
@@ -22,9 +21,10 @@ import {
   YAxis,
 } from "recharts";
 
-import { Slide, SlideDeck } from "@/components/monit-ext/slide-deck";
+import { AnoDropdown } from "@/components/monit-ext/ano-dropdown";
 import { AssinaturaAmbientalCard } from "@/components/monit-ext/assinatura-ambiental";
 import { MapaChoropleth } from "@/components/monit-ext/mapa-choropleth";
+import { Slide, SlideDeck } from "@/components/monit-ext/slide-deck";
 import { fadeSlideUp, staggerContainer } from "@/lib/design/motion";
 import { ANO_MIN, MESES_LABEL, TEMA_COR } from "@/lib/monit-ext/constants";
 import type { IpaMunicipio } from "@/lib/monit-ext/ipa";
@@ -77,7 +77,8 @@ interface Props {
   topMunicipios: MunicipioMapbiomas[];
   municipiosAtual: MunicipioMapbiomas[];
   ipaRanking: IpaMunicipio[];
-  anoAtual: number;
+  /** Ano selecionado ou "all" (multi-ano agregado). */
+  anoAtual: number | "all";
   anosDisponiveis: number[];
   anoParcial: boolean;
 }
@@ -101,12 +102,24 @@ export function MapbiomasDashboardView({
   anosDisponiveis,
   anoParcial,
 }: Props) {
-  // "atual" segue o ano SELECIONADO no seletor, não o último da série.
-  const atual = serie.find((s) => s.ano === anoAtual) ?? serie[serie.length - 1];
-  const atualIdx = serie.findIndex((s) => s.ano === anoAtual);
+  // Quando "Todos os anos" está ativo, `atual` vira o agregado da série
+  // inteira (soma dos KPIs, IPI recalculado). Caso contrário, é a linha
+  // do ano selecionado.
+  const atual =
+    anoAtual === "all"
+      ? agregarSerieMapbiomas(serie)
+      : serie.find((s) => s.ano === anoAtual) ?? serie[serie.length - 1];
+  const atualIdx =
+    anoAtual === "all" ? -1 : serie.findIndex((s) => s.ano === anoAtual);
   const anterior = atualIdx > 0 ? serie[atualIdx - 1] : null;
   // Ano-base para o comparativo — 2022 (marco temporal do projeto REDD+).
   const base = serie.find((s) => s.ano === ANO_MIN) ?? serie[0];
+  const labelAno = anoAtual === "all" ? "Todos os anos" : String(anoAtual);
+  // Ano concreto para subcomponentes que precisam de um número (mapa,
+  // ranking, cartão de município, IPA): quando "all", usamos o último ano
+  // com dados na série (retrato mais recente).
+  const anoConcreto: number =
+    anoAtual === "all" ? serie[serie.length - 1]?.ano ?? new Date().getFullYear() : anoAtual;
 
   return (
     <div className="pb-16">
@@ -117,7 +130,7 @@ export function MapbiomasDashboardView({
           </div>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">
             Alertas <span style={{ color: COR }}>MapBiomas</span>{" "}
-            <span className="text-[var(--text-muted)]">— {anoAtual}</span>
+            <span className="text-[var(--text-muted)]">— {labelAno}</span>
           </h1>
           {anoParcial && (
             <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-500">
@@ -126,7 +139,7 @@ export function MapbiomasDashboardView({
             </p>
           )}
         </div>
-        <AnoSeletor anos={anosDisponiveis} anoAtual={anoAtual} />
+        <AnoDropdown anos={anosDisponiveis} anoAtual={anoAtual} corTema={COR} />
       </header>
 
       <SlideDeck
@@ -145,7 +158,7 @@ export function MapbiomasDashboardView({
           corTema={COR}
         >
           <SlideKpiRow atual={atual} anterior={anterior} />
-          <ClasseComposicao serie={serie} ano={anoAtual} />
+          <ClasseComposicao serie={serie} ano={anoConcreto} />
           <NotaContexto>
             <strong>Composição fundiária</strong> — Irregular = residual sem
             ASV nem DERADSA. Autorizado Pleno = ASV cobre ≥ 99% do polígono.
@@ -175,11 +188,11 @@ export function MapbiomasDashboardView({
           index={3}
           total={TOC.length}
           title="Panorama municipal"
-          subtitle={`Área irregular por município em ${anoAtual}. Concentração espacial do problema.`}
+          subtitle={`Área irregular por município em ${labelAno}. Concentração espacial do problema.`}
           corTema={COR}
           fluid
         >
-          <MapaMunicipalMapbiomas municipiosAtual={municipiosAtual} anoAtual={anoAtual} />
+          <MapaMunicipalMapbiomas municipiosAtual={municipiosAtual} anoAtual={anoConcreto} />
           <NotaContexto>
             Escala log de área irregular — municípios sem alerta ficam em cinza
             claro. Faixas: 1-100 · 100-500 · 500-2k · 2k-10k · &gt;10k ha.
@@ -237,7 +250,7 @@ export function MapbiomasDashboardView({
           corTema={COR}
           fluid
         >
-          <IpaRanking ipa={ipaRanking} anoAtual={anoAtual} />
+          <IpaRanking ipa={ipaRanking} anoAtual={anoConcreto} />
           <AssinaturaAmbientalCard corTema={COR} municipios={topMunicipios.slice(0, 8).map((m) => m.municipio)} />
         </Slide>
       </SlideDeck>
@@ -246,32 +259,29 @@ export function MapbiomasDashboardView({
 }
 
 /* ==========================================================================
-   Seletor de ano + Mapa municipal + Comparativo base 2022
+   Mapa municipal + Comparativo base 2022 + helpers
    ========================================================================== */
 
-function AnoSeletor({ anos, anoAtual }: { anos: number[]; anoAtual: number }) {
-  const router = useRouter();
-  return (
-    <div className="flex flex-wrap items-center gap-1 rounded-full border bg-[var(--surface)] p-1">
-      <span className="px-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
-        Ano
-      </span>
-      {anos.map((a) => (
-        <button
-          key={a}
-          onClick={() => router.push(`?ano=${a}`, { scroll: false })}
-          className={`rounded-full px-3 py-1 text-[12px] font-medium tabular-nums transition-colors ${
-            a === anoAtual
-              ? "bg-[var(--elevated)] text-[var(--text)] shadow-[var(--shadow-sm)]"
-              : "text-[var(--text-muted)] hover:text-[var(--text)]"
-          }`}
-          style={a === anoAtual ? { color: COR } : undefined}
-        >
-          {a}
-        </button>
-      ))}
-    </div>
-  );
+/** Agrega a série anual num "ano sintético" para o modo Todos os anos. */
+function agregarSerieMapbiomas(serie: SerieAnualRow[]): SerieAnualRow {
+  const anos = serie.map((s) => s.ano);
+  const anoLabel = anos.length > 1 ? Math.min(...anos) : (anos[0] ?? 0);
+  const somaNum = (k: keyof SerieAnualRow) =>
+    serie.reduce((s, r) => s + Number(r[k] ?? 0), 0);
+  const totalHa = somaNum("areaTotalHa");
+  const irregHa = somaNum("areaIrregularHa");
+  return {
+    ano: anoLabel,
+    nAlertas: serie.reduce((s, r) => s + r.nAlertas, 0),
+    areaTotalHa: String(totalHa),
+    areaIrregularHa: String(irregHa),
+    areaAutorizadoHa: String(somaNum("areaAutorizadoHa")),
+    areaAutorizadoParcialHa: String(somaNum("areaAutorizadoParcialHa")),
+    areaRegularizadoHa: String(somaNum("areaRegularizadoHa")),
+    cerradoHa: String(somaNum("cerradoHa")),
+    caatingaHa: String(somaNum("caatingaHa")),
+    ipiPct: totalHa > 0 ? ((irregHa / totalHa) * 100).toFixed(2) : "0.00",
+  };
 }
 
 function MapaMunicipalMapbiomas({
@@ -662,9 +672,12 @@ function IpiTendencia({ serie }: { serie: SerieAnualRow[] }) {
         </ResponsiveContainer>
       </div>
       <NotaContexto>
-        Queda contínua = avanço do saneamento fundiário-ambiental. Ganhos
-        após inflexão vêm em geral do PRA (Programa de Regularização
-        Ambiental) — regularização retroativa de área irregular.
+        <strong>IPI</strong> (Índice de Pressão Irregular) = área irregular
+        ÷ área total desmatada no ano. Compara o desmatamento sem
+        licenciamento ambiental contra o total mapeado pelo MapBiomas —
+        quanto mais próximo de 0%, mais alta a cobertura por licença junto
+        à secretaria de meio ambiente. Queda contínua = avanço do
+        saneamento fundiário-ambiental.
       </NotaContexto>
     </motion.div>
   );
