@@ -1,6 +1,6 @@
 import { Flame } from "lucide-react";
 
-import { TEMA_COR } from "@/lib/monit-ext/constants";
+import { ANO_MIN, TEMA_COR, anoRecenteCompleto } from "@/lib/monit-ext/constants";
 import { getIpaRanking } from "@/lib/monit-ext/ipa";
 import {
   getQueimadasMunicipiosAno,
@@ -15,7 +15,11 @@ import { QueimadasDashboardView } from "./queimadas-dashboard-view";
 
 export const dynamic = "force-dynamic";
 
-export default async function Page() {
+interface PageProps {
+  searchParams: Promise<{ ano?: string }>;
+}
+
+export default async function Page({ searchParams }: PageProps) {
   const serie = await getQueimadasSerieAnual();
   if (serie.length === 0) {
     return (
@@ -31,7 +35,18 @@ export default async function Page() {
     );
   }
 
-  const anoAtual = serie.at(-1)!.ano;
+  const anosDisponiveis = serie.map((s) => s.ano).filter((a) => a >= ANO_MIN);
+  const anoCompleto = anoRecenteCompleto();
+  // Default: ano mais recente completo se estiver na série; senão, cai no maior ano ingerido.
+  const anoDefault = anosDisponiveis.includes(anoCompleto)
+    ? anoCompleto
+    : anosDisponiveis.at(-1)!;
+
+  const params = await searchParams;
+  const anoQuery = params.ano ? Number(params.ano) : null;
+  const anoAtual =
+    anoQuery !== null && anosDisponiveis.includes(anoQuery) ? anoQuery : anoDefault;
+
   const [top, emAlerta, todos, sazonalidade, recorrentes, ipa] = await Promise.all([
     getQueimadasTopMunicipios(anoAtual, 20),
     getQueimadasMunicipiosEmAlerta(anoAtual),
@@ -51,6 +66,8 @@ export default async function Page() {
       recorrentes={recorrentes}
       ipaRanking={ipa}
       anoAtual={anoAtual}
+      anosDisponiveis={anosDisponiveis}
+      anoParcial={anoAtual > anoCompleto}
     />
   );
 }

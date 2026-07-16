@@ -1,6 +1,6 @@
 import { Satellite } from "lucide-react";
 
-import { TEMA_COR } from "@/lib/monit-ext/constants";
+import { ANO_MIN, TEMA_COR, anoRecenteCompleto } from "@/lib/monit-ext/constants";
 import { getIpaRanking } from "@/lib/monit-ext/ipa";
 import {
   getProdesCiclos,
@@ -13,7 +13,11 @@ import { ProdesDashboardView } from "./prodes-dashboard-view";
 
 export const dynamic = "force-dynamic";
 
-export default async function Page() {
+interface PageProps {
+  searchParams: Promise<{ ano?: string }>;
+}
+
+export default async function Page({ searchParams }: PageProps) {
   const [ciclos, vetores, cobertura, topMun] = await Promise.all([
     getProdesCiclos(),
     getProdesVetorPressao(),
@@ -35,7 +39,25 @@ export default async function Page() {
     );
   }
 
-  const anoAtual = topMun[0]?.ano ?? ciclos.at(-1)?.anoProdesRef ?? 2025;
+  const anosDisponiveis = ciclos
+    .map((c) => c.anoProdesRef)
+    .filter((a) => a >= ANO_MIN)
+    .sort((a, b) => a - b);
+
+  const publicados = ciclos.filter((c) => c.nTotal > 0);
+  const anoCompleto = anoRecenteCompleto();
+  // Default = último ano PUBLICADO (com validação cruzada concluída) que
+  // não seja mais recente do que o ano completo. Evita cair em 2026 vazio.
+  const anoDefault =
+    publicados.filter((c) => c.anoProdesRef <= anoCompleto).at(-1)?.anoProdesRef ??
+    publicados.at(-1)?.anoProdesRef ??
+    ciclos.at(-1)!.anoProdesRef;
+
+  const params = await searchParams;
+  const anoQuery = params.ano ? Number(params.ano) : null;
+  const anoAtual =
+    anoQuery !== null && anosDisponiveis.includes(anoQuery) ? anoQuery : anoDefault;
+
   const ipa = await getIpaRanking(anoAtual, 15);
 
   return (
@@ -46,6 +68,8 @@ export default async function Page() {
       topMunicipios={topMun}
       ipaRanking={ipa}
       anoAtual={anoAtual}
+      anosDisponiveis={anosDisponiveis}
+      anoParcial={anoAtual > anoCompleto}
     />
   );
 }

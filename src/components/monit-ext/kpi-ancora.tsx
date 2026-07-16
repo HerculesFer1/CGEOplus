@@ -56,7 +56,7 @@ export function KpiAncora(props: KpiAncoraProps) {
       initial="hidden"
       animate="visible"
       variants={staggerContainer}
-      className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]"
+      className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] [&>*]:min-h-[188px]"
     >
       {/* Bloco 1 — KPI-âncora */}
       <motion.div

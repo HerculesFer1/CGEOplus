@@ -7,24 +7,19 @@ import {
   getMapbiomasSerieMensal,
   getMapbiomasTopMunicipios,
 } from "@/lib/monit-ext/queries";
-import { TEMA_COR } from "@/lib/monit-ext/constants";
+import { ANO_MIN, TEMA_COR, anoRecenteCompleto } from "@/lib/monit-ext/constants";
 
 import { MapbiomasDashboardView } from "./mapbiomas-dashboard-view";
 
 export const dynamic = "force-dynamic";
 
-export default async function Page() {
-  const [serie, mensal, top, ipa] = await Promise.all([
-    getMapbiomasSerieAnual(),
-    getMapbiomasSerieMensal(),
-    getMapbiomasTopMunicipios(20),
-    getIpaRanking(await ultimoAno(), 15),
-  ]);
+interface PageProps {
+  searchParams: Promise<{ ano?: string }>;
+}
 
-  const anoAtual = serie.at(-1)?.ano ?? null;
-  const municipios = anoAtual ? await getMapbiomasMunicipiosAno(anoAtual) : [];
-
-  if (serie.length === 0 || !anoAtual) {
+export default async function Page({ searchParams }: PageProps) {
+  const serie = await getMapbiomasSerieAnual();
+  if (serie.length === 0) {
     return (
       <div className="mx-auto flex max-w-2xl flex-col items-center gap-6 rounded-3xl border bg-[var(--elevated)] p-12 text-center shadow-[var(--shadow-sm)]">
         <Sprout className="h-12 w-12" style={{ color: TEMA_COR.mapbiomas }} strokeWidth={1.5} />
@@ -40,6 +35,24 @@ export default async function Page() {
     );
   }
 
+  const anosDisponiveis = serie.map((s) => s.ano).filter((a) => a >= ANO_MIN);
+  const anoCompleto = anoRecenteCompleto();
+  const anoDefault = anosDisponiveis.includes(anoCompleto)
+    ? anoCompleto
+    : anosDisponiveis.at(-1)!;
+
+  const params = await searchParams;
+  const anoQuery = params.ano ? Number(params.ano) : null;
+  const anoAtual =
+    anoQuery !== null && anosDisponiveis.includes(anoQuery) ? anoQuery : anoDefault;
+
+  const [mensal, top, ipa, municipios] = await Promise.all([
+    getMapbiomasSerieMensal(),
+    getMapbiomasTopMunicipios(anoAtual, 20),
+    getIpaRanking(anoAtual, 15),
+    getMapbiomasMunicipiosAno(anoAtual),
+  ]);
+
   return (
     <MapbiomasDashboardView
       serie={serie}
@@ -48,11 +61,8 @@ export default async function Page() {
       municipiosAtual={municipios}
       ipaRanking={ipa}
       anoAtual={anoAtual}
+      anosDisponiveis={anosDisponiveis}
+      anoParcial={anoAtual > anoCompleto}
     />
   );
-}
-
-async function ultimoAno(): Promise<number> {
-  const serie = await getMapbiomasSerieAnual();
-  return serie.at(-1)?.ano ?? new Date().getFullYear();
 }

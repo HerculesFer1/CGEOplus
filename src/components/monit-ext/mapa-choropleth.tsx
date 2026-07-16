@@ -29,7 +29,8 @@ interface GeoJSON {
 export interface MapaChoroplethProps {
   /** Dados por município — chave é o nome (será normalizado internamente). */
   dados: Array<{ municipio: string; valor: number }>;
-  /** Cor tema (deve ser um hex; usada com opacidade variável nos bins). */
+  /** Cor tema (deve ser um hex; usada com opacidade variável nos bins quando
+   *  `escalaLog` não é passada). */
   cor: string;
   /** Rótulo curto da métrica pro tooltip e overlay. */
   labelMetrica: string;
@@ -39,6 +40,15 @@ export interface MapaChoroplethProps {
   sufixo?: string;
   /** Ativa altura menor pro modo dentro de slides (default 480px). */
   altura?: number;
+  /**
+   * Se fornecida, o mapa pinta cada município conforme a faixa log da
+   * escala (paleta amarelo→vermelho como no dashboard upstream de queimadas)
+   * em vez de bins quantílicos da cor tema. Bins ficam com o `limite` como
+   * corte inferior; municípios com valor 0/faltante usam a primeira cor.
+   */
+  escalaLog?: Array<{ limite: number; cor: string }>;
+  /** Callback opcional ao clicar num município (nome exato do geojson). */
+  onSelect?: (nome: string) => void;
 }
 
 /**
@@ -55,6 +65,8 @@ export function MapaChoropleth({
   formatValor = (v) => formatNumber(Math.round(v)),
   sufixo,
   altura = 480,
+  escalaLog,
+  onSelect,
 }: MapaChoroplethProps) {
   const [geo, setGeo] = useState<GeoJSON | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -157,7 +169,9 @@ export function MapaChoropleth({
           bbox={bbox}
           valores={valores}
           cor={cor}
+          escalaLog={escalaLog}
           onHover={setHover}
+          onSelect={onSelect}
         />
 
         {/* Overlays 2×2 no canto superior esquerdo */}
@@ -209,32 +223,56 @@ export function MapaChoropleth({
         )}
       </div>
 
-      {/* Legenda quantílica */}
+      {/* Legenda */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
         <span className="flex items-center gap-1.5">
           <span
-            className="inline-block h-3 w-6 rounded"
-            style={{ backgroundColor: "var(--surface)", opacity: 0.35 }}
+            className="inline-block h-3 w-6 rounded border border-[var(--border)]"
+            style={{ backgroundColor: SEM_DADO_COR }}
           />
           Sem dado
         </span>
-        {BIN_OPACITY.map((op, i) => {
-          const inferior = i === 0 ? 1 : valores.bins[i - 1] + 1;
-          const superior = i < valores.bins.length ? valores.bins[i] : valores.max;
-          return (
-            <span key={i} className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-3 w-6 rounded"
-                style={{ backgroundColor: cor, opacity: op }}
-              />
-              {fmt(inferior)}–{fmt(superior)}
-            </span>
-          );
-        })}
+        {escalaLog
+          ? escalaLog.slice(1).map((faixa, i) => {
+              const proximo = escalaLog[i + 2];
+              const rotulo = proximo
+                ? `${fmt(faixa.limite)}–${fmt(proximo.limite)}`
+                : `> ${fmt(faixa.limite)}`;
+              return (
+                <span key={faixa.limite} className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-3 w-6 rounded"
+                    style={{ backgroundColor: faixa.cor }}
+                  />
+                  {rotulo}
+                </span>
+              );
+            })
+          : BIN_OPACITY.map((op, i) => {
+              const inferior = i === 0 ? 1 : valores.bins[i - 1] + 1;
+              const superior = i < valores.bins.length ? valores.bins[i] : valores.max;
+              return (
+                <span key={i} className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-3 w-6 rounded"
+                    style={{ backgroundColor: cor, opacity: op }}
+                  />
+                  {fmt(inferior)}–{fmt(superior)}
+                </span>
+              );
+            })}
       </div>
     </div>
   );
 }
+
+/**
+ * Cor "sem dado" — cinza médio que fica legível tanto no light quanto no
+ * dark. Usa a variável semântica de superfície secundária, com fallback
+ * hex para evitar o preto que aparecia com `--surface` + opacity 0.35 no
+ * tema escuro (bug reportado nos mapas de município).
+ */
+const SEM_DADO_COR = "color-mix(in srgb, var(--text-subtle) 22%, transparent)";
 
 /* ── SVG puro ───────────────────────────────────────────────────────────── */
 
@@ -248,18 +286,34 @@ function classificar(v: number, bins: number[]): number {
   return bins.length;
 }
 
+function corLog(
+  v: number,
+  escala: Array<{ limite: number; cor: string }>,
+): { cor: string; semDado: boolean } {
+  if (v <= 0) return { cor: SEM_DADO_COR, semDado: true };
+  let escolhida = escala[0].cor;
+  for (const f of escala) {
+    if (v >= f.limite) escolhida = f.cor;
+  }
+  return { cor: escolhida, semDado: false };
+}
+
 function MapaSvg({
   geo,
   bbox,
   valores,
   cor,
+  escalaLog,
   onHover,
+  onSelect,
 }: {
   geo: GeoJSON;
   bbox: { minX: number; minY: number; maxX: number; maxY: number };
   valores: { arr: number[]; max: number; bins: number[] };
   cor: string;
+  escalaLog?: Array<{ limite: number; cor: string }>;
   onHover: (h: { nome: string; valor: number; x: number; y: number } | null) => void;
+  onSelect?: (nome: string) => void;
 }) {
   const width = 1000;
   const height = 1200;
@@ -289,9 +343,17 @@ function MapaSvg({
       className="h-full w-full"
     >
       {paths.map((p, i) => {
-        const bin = classificar(p.valor, valores.bins);
-        const fill = bin < 0 ? "var(--surface)" : cor;
-        const opacity = bin < 0 ? 0.35 : BIN_OPACITY[bin];
+        let fill: string;
+        let opacity: number;
+        if (escalaLog) {
+          const c = corLog(p.valor, escalaLog);
+          fill = c.cor;
+          opacity = c.semDado ? 1 : 0.92;
+        } else {
+          const bin = classificar(p.valor, valores.bins);
+          fill = bin < 0 ? SEM_DADO_COR : cor;
+          opacity = bin < 0 ? 1 : BIN_OPACITY[bin];
+        }
         return (
           <path
             key={i}
@@ -300,7 +362,8 @@ function MapaSvg({
             fillOpacity={opacity}
             stroke="var(--border)"
             strokeWidth={0.5}
-            className="cursor-default transition-opacity hover:stroke-[var(--text)]"
+            className={`transition-opacity hover:stroke-[var(--text)] ${onSelect ? "cursor-pointer" : "cursor-default"}`}
+            onClick={onSelect ? () => onSelect(p.name) : undefined}
             onMouseEnter={(e) => {
               const parent = e.currentTarget.ownerSVGElement!.parentElement!;
               const parentRect = parent.getBoundingClientRect();

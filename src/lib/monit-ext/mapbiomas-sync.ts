@@ -147,6 +147,55 @@ export async function syncMapbiomas(): Promise<SyncResult> {
   const meses = parseMensal(monthly);
   const municipios = parseMunicipios(municipiosUpstream);
 
+  // Fallback: se `agregado_municipios` tem anos que ainda não estão em
+  // `resumo_estatico.json` (o upstream demora mais para publicar o resumo),
+  // derivamos a linha anual somando os municípios. Isso mantém o KPI anual
+  // do CGEO+ em sincronia com o dashboard upstream, que também soma no
+  // client. Ex.: em 2026 os municípios chegam antes do resumo, e sem esse
+  // fallback o dashboard só listaria até 2025.
+  const anosNoResumo = new Set(anos.map((a) => a.ano));
+  const anosFaltando = new Map<number, AgregadoMunicipioRow[]>();
+  for (const r of municipiosUpstream) {
+    if (anosNoResumo.has(r.ano)) continue;
+    const arr = anosFaltando.get(r.ano) ?? [];
+    arr.push(r);
+    anosFaltando.set(r.ano, arr);
+  }
+  for (const [ano, rows] of anosFaltando) {
+    const agg = rows.reduce(
+      (a, r) => {
+        a.nAlertas += r.num_alertas;
+        a.areaTotalHa += Number(r.ha_total) || 0;
+        a.areaIrregularHa += Number(r.ha_irregular) || 0;
+        a.areaAutorizadoHa += Number(r.ha_autorizado_total) || 0;
+        a.areaRegularizadoHa += Number(r.ha_regularizado) || 0;
+        return a;
+      },
+      {
+        nAlertas: 0,
+        areaTotalHa: 0,
+        areaIrregularHa: 0,
+        areaAutorizadoHa: 0,
+        areaRegularizadoHa: 0,
+      },
+    );
+    anos.push({
+      ano,
+      nAlertas: agg.nAlertas,
+      areaTotalHa: n(agg.areaTotalHa),
+      areaIrregularHa: n(agg.areaIrregularHa),
+      areaAutorizadoHa: n(agg.areaAutorizadoHa),
+      areaAutorizadoParcialHa: "0",
+      areaRegularizadoHa: n(agg.areaRegularizadoHa),
+      cerradoHa: "0",
+      caatingaHa: "0",
+      ipiPct:
+        agg.areaTotalHa > 0
+          ? ((agg.areaIrregularHa / agg.areaTotalHa) * 100).toFixed(2)
+          : "0.00",
+    });
+  }
+
   // Upsert por chave natural — o cron é idempotente.
   if (anos.length > 0) {
     await db

@@ -4,7 +4,7 @@ import { addMonths, differenceInDays, isBefore } from "date-fns";
 
 import { KpiAncora } from "@/components/monit-ext/kpi-ancora";
 import { Button } from "@/components/ui/button";
-import { CRONOGRAMA, TEMA_COR } from "@/lib/monit-ext/constants";
+import { CRONOGRAMA, TEMA_COR, anoRecenteCompleto } from "@/lib/monit-ext/constants";
 import {
   getMapbiomasSerieAnual,
   getMapbiomasTopMunicipios,
@@ -19,9 +19,8 @@ export const dynamic = "force-dynamic";
 const COR = TEMA_COR.mapbiomas;
 
 export default async function Page() {
-  const [serie, top, execucoes] = await Promise.all([
+  const [serie, execucoes] = await Promise.all([
     getMapbiomasSerieAnual(),
-    getMapbiomasTopMunicipios(6),
     getUltimasExecucoes(),
   ]);
 
@@ -29,8 +28,14 @@ export default async function Page() {
     return <EmptyState />;
   }
 
-  const atual = serie[serie.length - 1];
-  const anterior = serie.length >= 2 ? serie[serie.length - 2] : null;
+  // Ano-âncora da landing = último ano completo (evita mostrar ano corrente
+  // parcial como retrato oficial). Se a série ainda não tem esse ano, cai
+  // no último ingerido.
+  const anoCompleto = anoRecenteCompleto();
+  const atual = serie.find((s) => s.ano === anoCompleto) ?? serie[serie.length - 1];
+  const atualIdx = serie.findIndex((s) => s.ano === atual.ano);
+  const anterior = atualIdx > 0 ? serie[atualIdx - 1] : null;
+  const top = await getMapbiomasTopMunicipios(atual.ano, 6);
   const ipiAtual = Number(atual.ipiPct);
   const ipiAnterior = anterior ? Number(anterior.ipiPct) : null;
   const deltaIpi = ipiAnterior !== null ? Number((ipiAtual - ipiAnterior).toFixed(1)) : null;

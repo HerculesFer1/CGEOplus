@@ -1,7 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ExternalLink } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -22,7 +24,7 @@ import { AssinaturaAmbientalCard } from "@/components/monit-ext/assinatura-ambie
 import { MapaChoropleth } from "@/components/monit-ext/mapa-choropleth";
 import { Slide, SlideDeck } from "@/components/monit-ext/slide-deck";
 import { fadeSlideUp, staggerContainer } from "@/lib/design/motion";
-import { MESES_LABEL, TEMA_COR } from "@/lib/monit-ext/constants";
+import { MESES_LABEL, QUEIMADA_ESCALA_LOG, TEMA_COR } from "@/lib/monit-ext/constants";
 import type { IpaMunicipio } from "@/lib/monit-ext/ipa";
 import { formatNumber } from "@/lib/utils";
 
@@ -77,6 +79,8 @@ interface Props {
   recorrentes: Recorrente[];
   ipaRanking: IpaMunicipio[];
   anoAtual: number;
+  anosDisponiveis: number[];
+  anoParcial: boolean;
 }
 
 const TOC = [
@@ -87,7 +91,24 @@ const TOC = [
   { id: "anual", label: "Série anual" },
   { id: "recorrencia", label: "Recorrência" },
   { id: "cgeo", label: "Leitura CGEO+" },
+  { id: "metodologia", label: "Metodologia" },
 ];
+
+/** Nota de contexto discreta — texto miúdo com ícone, para ancorar a leitura
+ *  de um slide sem competir com os números. */
+function NotaContexto({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="flex items-start gap-1.5 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)]/60 px-3 py-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
+      <span
+        className="mt-0.5 inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-current text-[9px] font-bold"
+        aria-hidden
+      >
+        i
+      </span>
+      <span>{children}</span>
+    </p>
+  );
+}
 
 export function QueimadasDashboardView({
   serie,
@@ -98,8 +119,14 @@ export function QueimadasDashboardView({
   recorrentes,
   ipaRanking,
   anoAtual,
+  anosDisponiveis,
+  anoParcial,
 }: Props) {
-  const atual = serie.at(-1)!;
+  // "atual" agora é o ano SELECIONADO — não o último da série. Buscamos na
+  // série pelo ano selecionado; se não estiver (não deveria acontecer),
+  // caímos no último. Isso evita mostrar 2026 parcial quando o usuário está
+  // olhando 2025.
+  const atual = serie.find((s) => s.ano === anoAtual) ?? serie.at(-1)!;
   const areaAtual = Number(atual.areaQueimadaHa);
   const areaEmAlerta = emAlerta.reduce(
     (s, m) => s + Number(m.areaQueimadaTotalHa),
@@ -108,14 +135,23 @@ export function QueimadasDashboardView({
 
   return (
     <div className="pb-16">
-      <header className="mb-6">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
-          Dashboard Queimadas · modo apresentação
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
+            Dashboard Queimadas · modo apresentação
+          </div>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">
+            <span style={{ color: COR }}>Queimadas</span> INPE{" "}
+            <span className="text-[var(--text-muted)]">— {anoAtual}</span>
+          </h1>
+          {anoParcial && (
+            <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-500">
+              <AlertTriangle className="h-3 w-3" strokeWidth={2} />
+              Ano corrente — dados parciais até o último sync INPE
+            </p>
+          )}
         </div>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-          <span style={{ color: COR }}>Queimadas</span> INPE{" "}
-          <span className="text-[var(--text-muted)]">— {anoAtual}</span>
-        </h1>
+        <AnoSeletor anos={anosDisponiveis} anoAtual={anoAtual} />
       </header>
 
       <SlideDeck backHref="/monitoramento/queimadas" toc={TOC} corTema={COR} tituloModulo="Queimadas">
@@ -134,6 +170,13 @@ export function QueimadasDashboardView({
             areaEmAlerta={areaEmAlerta}
             areaAtual={areaAtual}
           />
+          <NotaContexto>
+            <strong>Em alerta CGEO+</strong> = municípios cuja área queimada
+            atingiu classe AHP máxima 4 ou 5 (Alta/Muito Alta prioridade
+            ambiental) e mais de 50% da área queimada está dentro de zona
+            prioritária. É o filtro que o CGEO+ usa para acionar triagem de
+            campo.
+          </NotaContexto>
           <AlertaBanner emAlerta={emAlerta} anoAtual={anoAtual} />
         </Slide>
 
@@ -147,6 +190,12 @@ export function QueimadasDashboardView({
           corTema={COR}
         >
           <ClassesDist sazonalidade={sazonalidade} />
+          <NotaContexto>
+            AHP (<em>Analytic Hierarchy Process</em>) ordena o território em 5
+            classes de prioridade para conservação — 1 muito baixa, 5 muito
+            alta. Fogo em classes 4-5 pressiona diretamente as áreas que a
+            política pública quer proteger.
+          </NotaContexto>
         </Slide>
 
         {/* SLIDE 3 — MUNICIPAL */}
@@ -159,18 +208,7 @@ export function QueimadasDashboardView({
           corTema={COR}
           fluid
         >
-          <motion.div variants={fadeSlideUp}>
-            <MapaChoropleth
-              dados={municipiosAno.map((m) => ({
-                municipio: m.municipioNome,
-                valor: Math.round(Number(m.areaQueimadaTotalHa)),
-              }))}
-              cor={COR}
-              labelMetrica="Área queimada"
-              sufixo="ha"
-            />
-          </motion.div>
-          <RankingMunicipal top={topMunicipios} />
+          <MunicipalPanel municipiosAno={municipiosAno} topMunicipios={topMunicipios} />
         </Slide>
 
         {/* SLIDE 4 — EVOLUÇÃO MENSAL */}
@@ -183,6 +221,12 @@ export function QueimadasDashboardView({
           corTema={COR}
         >
           <MensalPorClasse sazonalidade={sazonalidade} />
+          <NotaContexto>
+            Áreas empilhadas — cada tom mostra a contribuição de uma classe AHP
+            no total do mês. Concentração em Ago-Out reflete o pico da
+            estiagem; picos fora dessa janela são anomalia e merecem
+            investigação.
+          </NotaContexto>
         </Slide>
 
         {/* SLIDE 5 — SÉRIE ANUAL */}
@@ -195,6 +239,11 @@ export function QueimadasDashboardView({
           corTema={COR}
         >
           <SerieAnual serie={serie} />
+          <NotaContexto>
+            Eixo esquerdo em hectares (linha cheia · área queimada). Eixo
+            direito em contagem (linha tracejada · nº de cicatrizes AQ1km).
+            {atual.ano === new Date().getFullYear() && " O ano corrente pode aparecer abaixo do padrão histórico — a série só completa após o último sync INPE do ano."}
+          </NotaContexto>
         </Slide>
 
         {/* SLIDE 6 — RECORRÊNCIA */}
@@ -208,6 +257,12 @@ export function QueimadasDashboardView({
           fluid
         >
           <Recorrencia recorrentes={recorrentes} />
+          <NotaContexto>
+            Cada card mostra <strong>anos críticos ÷ total de anos com dado</strong>.
+            Municípios em vermelho (≥ 75%) são fogo crônico — a política
+            precisa ser contínua, não pontual. Ordenados pela intensidade e,
+            em empate, pela área acumulada.
+          </NotaContexto>
         </Slide>
 
         {/* SLIDE 7 — CGEO+ */}
@@ -221,12 +276,325 @@ export function QueimadasDashboardView({
           fluid
         >
           <IpaRanking ipa={ipaRanking} anoAtual={anoAtual} />
+          <NotaContexto>
+            IPA (0-100) = 50% <strong>IPI</strong> (Índice de Pressão
+            Irregular · MapBiomas) + 30% <strong>Fogo</strong> em áreas
+            prioritárias (Queimadas AQ1km) + 20% <strong>ΔPR</strong>
+            (divergência PRODES × MapBiomas). Municípios com IPA ≥ 70 são
+            prioridade máxima; 50-69 pressão média; abaixo de 50 baixa.
+            &quot;—&quot; significa fonte sem cobertura naquele município no ano.
+          </NotaContexto>
           <AssinaturaAmbientalCard
             corTema={COR}
             municipios={emAlerta.slice(0, 8).map((m) => m.municipioNome)}
           />
         </Slide>
+
+        {/* SLIDE 8 — METODOLOGIA */}
+        <Slide
+          id="metodologia"
+          index={8}
+          total={TOC.length}
+          title="Metodologia e fonte"
+          subtitle="Produto, cadência de ingestão, cruzamentos e limitações — do INPE ao alerta CGEO+."
+          corTema={COR}
+          fluid
+        >
+          <Metodologia anoAtual={anoAtual} />
+        </Slide>
       </SlideDeck>
+    </div>
+  );
+}
+
+/* ==========================================================================
+   Seletor de ano (chip switch)
+   ========================================================================== */
+
+function AnoSeletor({ anos, anoAtual }: { anos: number[]; anoAtual: number }) {
+  const router = useRouter();
+  return (
+    <div className="flex flex-wrap items-center gap-1 rounded-full border bg-[var(--surface)] p-1">
+      <span className="px-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
+        Ano
+      </span>
+      {anos.map((a) => (
+        <button
+          key={a}
+          onClick={() => router.push(`?ano=${a}`, { scroll: false })}
+          className={`rounded-full px-3 py-1 text-[12px] font-medium tabular-nums transition-colors ${
+            a === anoAtual
+              ? "bg-[var(--elevated)] text-[var(--text)] shadow-[var(--shadow-sm)]"
+              : "text-[var(--text-muted)] hover:text-[var(--text)]"
+          }`}
+          style={a === anoAtual ? { color: COR } : undefined}
+        >
+          {a}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ==========================================================================
+   SLIDE 3 — Municipal com mapa + toggle prioridade + card lateral
+   ========================================================================== */
+
+function MunicipalPanel({
+  municipiosAno,
+  topMunicipios,
+}: {
+  municipiosAno: MunicipioAno[];
+  topMunicipios: MunicipioAno[];
+}) {
+  const [priorityOnly, setPriorityOnly] = useState(false);
+  const [selecionado, setSelecionado] = useState<MunicipioAno | null>(null);
+
+  const destacados = useMemo(
+    () =>
+      municipiosAno.filter(
+        (m) =>
+          m.classeMaxQueimada !== null &&
+          m.classeMaxQueimada >= 4 &&
+          Number(m.pctAreaPrioritaria ?? 0) > 50,
+      ),
+    [municipiosAno],
+  );
+
+  const dadosMapa = useMemo(() => {
+    const base = municipiosAno.map((m) => ({
+      municipio: m.municipioNome,
+      valor: Math.round(Number(m.areaQueimadaTotalHa)),
+      cod: m.municipioCod,
+    }));
+    if (!priorityOnly) return base;
+    const set = new Set(destacados.map((m) => m.municipioCod));
+    // Zera municípios fora do destaque — o mapa os pinta como "sem dado",
+    // preservando o contorno do estado. Mesmo comportamento do upstream.
+    return base.map((d) => (set.has(d.cod) ? d : { ...d, valor: 0 }));
+  }, [municipiosAno, priorityOnly, destacados]);
+
+  return (
+    <motion.div variants={fadeSlideUp} className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button
+          onClick={() => setPriorityOnly((v) => !v)}
+          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors ${
+            priorityOnly
+              ? "border-red-500/40 bg-red-500/10 text-red-500"
+              : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)]"
+          }`}
+        >
+          <AlertTriangle className="h-3.5 w-3.5" strokeWidth={2} />
+          {priorityOnly ? "Mostrando só prioridade alta" : "Só prioridade alta"}
+          <span
+            className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums"
+            style={{
+              backgroundColor: priorityOnly ? "rgba(239,68,68,0.2)" : "var(--elevated)",
+              color: priorityOnly ? "#EF4444" : "var(--text-muted)",
+            }}
+          >
+            {destacados.length}
+          </span>
+        </button>
+        <p className="text-[11px] text-[var(--text-muted)]">
+          Clique num município do mapa para abrir o cartão flutuante de contexto.
+        </p>
+      </div>
+
+      <div className="relative">
+        <MapaChoropleth
+          dados={dadosMapa}
+          cor={COR}
+          labelMetrica="Área queimada"
+          sufixo="ha"
+          escalaLog={QUEIMADA_ESCALA_LOG}
+          onSelect={(nome) => {
+            const m = municipiosAno.find(
+              (mm) => mm.municipioNome.toLowerCase() === nome.toLowerCase(),
+            );
+            if (m) setSelecionado(m);
+          }}
+        />
+        {/* Card do município selecionado — flutua sobre o canto direito do mapa
+         *  para não roubar largura horizontal quando ninguém foi clicado. */}
+        {selecionado && (
+          <div className="pointer-events-auto absolute right-4 top-4 z-20 w-64 max-w-[calc(100%-2rem)] rounded-2xl border bg-[var(--elevated)]/95 p-4 shadow-[var(--shadow-md)] backdrop-blur-md">
+            <MunicipioCardBody
+              municipio={selecionado}
+              onClose={() => setSelecionado(null)}
+            />
+          </div>
+        )}
+      </div>
+
+      <NotaContexto>
+        Escala log de área queimada — os tons quentes crescem a cada faixa
+        (1-500 → 500-2k → 2k-5k → 5k-10k → &gt;10k ha). O toggle
+        <em> Só prioridade alta</em> aplica o mesmo critério do alerta CGEO+:
+        classe AHP 4-5 combinada com &gt;50% da área em zona prioritária.
+      </NotaContexto>
+
+      <RankingMunicipal top={topMunicipios} />
+    </motion.div>
+  );
+}
+
+function MunicipioCardBody({
+  municipio,
+  onClose,
+}: {
+  municipio: MunicipioAno;
+  onClose: () => void;
+}) {
+  const cor = CORES_AHP[(municipio.classeMaxQueimada ?? 1) - 1];
+  const pctPrio = Number(municipio.pctAreaPrioritaria ?? 0);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
+            Município
+          </p>
+          <h4 className="truncate text-base font-semibold text-[var(--text)]" title={municipio.municipioNome}>
+            {municipio.municipioNome}
+          </h4>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-[var(--text-subtle)] hover:text-[var(--text)]"
+          aria-label="Fechar cartão"
+        >
+          ×
+        </button>
+      </div>
+      <dl className="grid grid-cols-2 gap-2 text-[11px]">
+        <div className="rounded-lg bg-[var(--elevated)] p-2">
+          <dt className="text-[var(--text-subtle)]">Área queimada</dt>
+          <dd className="font-semibold tabular-nums text-[var(--text)]">
+            {formatNumber(Math.round(Number(municipio.areaQueimadaTotalHa)))} ha
+          </dd>
+        </div>
+        <div className="rounded-lg bg-[var(--elevated)] p-2">
+          <dt className="text-[var(--text-subtle)]">Cicatrizes</dt>
+          <dd className="font-semibold tabular-nums text-[var(--text)]">
+            {formatNumber(municipio.nCicatrizesTotal)}
+          </dd>
+        </div>
+        <div className="rounded-lg bg-[var(--elevated)] p-2">
+          <dt className="text-[var(--text-subtle)]">Classe AHP máx.</dt>
+          <dd className="mt-0.5">
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+              style={{ backgroundColor: `${cor}25`, color: cor }}
+            >
+              {municipio.classeMaxQueimada ?? "—"} · {LABEL_AHP[municipio.classeMaxQueimada ?? 1] ?? "—"}
+            </span>
+          </dd>
+        </div>
+        <div className="rounded-lg bg-[var(--elevated)] p-2">
+          <dt className="text-[var(--text-subtle)]">% em prioritária</dt>
+          <dd
+            className="font-semibold tabular-nums"
+            style={{ color: pctPrio > 50 ? "#EF4444" : "var(--text)" }}
+          >
+            {pctPrio.toFixed(1)}%
+          </dd>
+        </div>
+        <div className="col-span-2 rounded-lg bg-[var(--elevated)] p-2">
+          <dt className="text-[var(--text-subtle)]">Mês de pico</dt>
+          <dd className="font-semibold text-[var(--text)]">
+            {municipio.mesPico ? MESES_LABEL[municipio.mesPico - 1] : "—"}
+          </dd>
+        </div>
+      </dl>
+      {municipio.emAlerta && (
+        <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-2 text-[11px] font-medium text-red-500">
+          Em alerta CGEO+ — classe AHP 4-5 e &gt;50% da área queimada em zona prioritária.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ==========================================================================
+   SLIDE 8 — Metodologia
+   ========================================================================== */
+
+function Metodologia({ anoAtual }: { anoAtual: number }) {
+  return (
+    <motion.div variants={fadeSlideUp} className="grid gap-4 lg:grid-cols-2">
+      <div className="space-y-3 rounded-2xl border bg-[var(--surface)] p-5">
+        <h4 className="text-sm font-semibold text-[var(--text)]">Fonte de dados</h4>
+        <dl className="space-y-1.5 text-[12px]">
+          <MetodItem k="Produto" v="Área Queimada AQ1km V6 — Coleção 2" />
+          <MetodItem k="Instituição" v="INPE / LASA-UFRJ" />
+          <MetodItem k="Satélites" v="MODIS (AQUA + TERRA)" />
+          <MetodItem k="Resolução" v="1 km" />
+          <MetodItem k="Cadência" v="Mensal — INPE publica mês N no início de N+1" />
+          <MetodItem k="Sync CGEO+" v="Dia 15 de cada mês, 04h UTC (Vercel Cron)" />
+          <MetodItem k="Ano da leitura atual" v={String(anoAtual)} />
+        </dl>
+      </div>
+
+      <div className="space-y-3 rounded-2xl border bg-[var(--surface)] p-5">
+        <h4 className="text-sm font-semibold text-[var(--text)]">Cruzamento CGEO+</h4>
+        <ol className="ml-4 list-decimal space-y-1.5 text-[12px] text-[var(--text-muted)]">
+          <li>Cicatrizes mensais AQ1km recortadas para o Piauí</li>
+          <li>Cruzamento vetorial com as 5 classes AHP de prioridade ambiental</li>
+          <li>Agregação por município × ano × mês × classe</li>
+          <li>
+            Flag <em>em alerta</em>: classe AHP máxima 4-5 combinada com &gt;50%
+            da área queimada dentro de zona prioritária
+          </li>
+          <li>
+            Composição do IPA (50% IPI + 30% queimadas em prioritária + 20%
+            divergência PRODES) para a leitura unificada
+          </li>
+        </ol>
+      </div>
+
+      <div className="lg:col-span-2 space-y-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-5">
+        <h4 className="flex items-center gap-2 text-sm font-semibold text-amber-500">
+          <AlertTriangle className="h-4 w-4" strokeWidth={2} />
+          Limitações importantes
+        </h4>
+        <ul className="ml-4 list-disc space-y-1.5 text-[12px] text-[var(--text-muted)]">
+          <li>
+            <strong>Produto provisório INPE</strong> — usar como estimativa
+            exploratória, não como base para autuação ambiental.
+          </li>
+          <li>
+            <strong>Superestimação de área</strong> — resolução de 1 km gera
+            commission error; pixels com fogo parcial contam integralmente.
+          </li>
+          <li>
+            <strong>Cicatrizes ≠ focos</strong> — polígonos representam área
+            queimada; um evento pode gerar múltiplos polígonos.
+          </li>
+          <li>
+            <strong>Cobertura por nuvens</strong> — Jan-Mar no Piauí tem alta
+            nebulosidade e pode subestimar cicatrizes.
+          </li>
+        </ul>
+        <a
+          href="https://queimadas.dgi.inpe.br/queimadas/aq1km/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-500 hover:underline"
+        >
+          Documentação AQ1km INPE <ExternalLink className="h-3 w-3" strokeWidth={2} />
+        </a>
+      </div>
+    </motion.div>
+  );
+}
+
+function MetodItem({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex justify-between gap-3 border-b border-[var(--border)]/50 pb-1 last:border-0">
+      <dt className="text-[var(--text-subtle)]">{k}</dt>
+      <dd className="text-right font-medium text-[var(--text)]">{v}</dd>
     </div>
   );
 }

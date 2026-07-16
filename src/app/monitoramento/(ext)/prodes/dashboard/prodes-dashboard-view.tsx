@@ -1,6 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -18,11 +21,34 @@ import { AssinaturaAmbientalCard } from "@/components/monit-ext/assinatura-ambie
 import { MapaChoropleth } from "@/components/monit-ext/mapa-choropleth";
 import { Slide, SlideDeck } from "@/components/monit-ext/slide-deck";
 import { fadeSlideUp, staggerContainer } from "@/lib/design/motion";
-import { TEMA_COR } from "@/lib/monit-ext/constants";
+import { ANO_MIN, TEMA_COR } from "@/lib/monit-ext/constants";
 import type { IpaMunicipio } from "@/lib/monit-ext/ipa";
 import { formatNumber } from "@/lib/utils";
 
 const COR = TEMA_COR.prodes;
+
+const PRODES_ESCALA_LOG = [
+  { limite: 0, cor: "#F5F5F5" },
+  { limite: 1, cor: "#D1FAE5" },
+  { limite: 100, cor: "#A7F3D0" },
+  { limite: 500, cor: "#6EE7B7" },
+  { limite: 2000, cor: "#10B981" },
+  { limite: 10000, cor: "#047857" },
+];
+
+function NotaContexto({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="flex items-start gap-1.5 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)]/60 px-3 py-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
+      <span
+        className="mt-0.5 inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-current text-[9px] font-bold"
+        aria-hidden
+      >
+        i
+      </span>
+      <span>{children}</span>
+    </p>
+  );
+}
 
 interface Ciclo {
   anoProdesRef: number;
@@ -60,6 +86,8 @@ interface Props {
   topMunicipios: TopMun[];
   ipaRanking: IpaMunicipio[];
   anoAtual: number;
+  anosDisponiveis: number[];
+  anoParcial: boolean;
 }
 
 const TOC = [
@@ -68,6 +96,7 @@ const TOC = [
   { id: "vetor", label: "Vetor de pressão" },
   { id: "cobertura", label: "Cobertura PRODES" },
   { id: "ranking", label: "Top municípios" },
+  { id: "base2022", label: `Comparativo desde ${ANO_MIN}` },
   { id: "cgeo", label: "Leitura CGEO+" },
 ];
 
@@ -78,11 +107,15 @@ export function ProdesDashboardView({
   topMunicipios,
   ipaRanking,
   anoAtual,
+  anosDisponiveis,
+  anoParcial,
 }: Props) {
   // Ciclos "publicados" = com validação cruzada concluída (n_total > 0).
   // O ciclo do ano corrente pode existir com n_total=0 até o PRODES publicar (out).
   const publicados = ciclos.filter((c) => c.nTotal > 0);
-  const atual = publicados.at(-1) ?? ciclos.at(-1)!;
+  // "atual" = ciclo do ano selecionado (se publicado). Fallback: último
+  // publicado disponível.
+  const atual = publicados.find((c) => c.anoProdesRef === anoAtual) ?? publicados.at(-1) ?? ciclos.at(-1)!;
   // Totalizadores só somam ciclos publicados — o card diz "acumulados nos
   // ciclos publicados" e incluir 2026 (só sem_prodes=747) contaria como
   // discordância o que na verdade é ciclo em aberto.
@@ -90,17 +123,28 @@ export function ProdesDashboardView({
   const conc = publicados.reduce((s, c) => s + c.nConcordantes, 0);
   const disc = publicados.reduce((s, c) => s + c.nDiscordantes, 0);
   const sem = publicados.reduce((s, c) => s + c.nSemProdes, 0);
+  const base = publicados.find((c) => c.anoProdesRef === ANO_MIN) ?? publicados[0];
+  const topMunicipiosAno = topMunicipios.filter((m) => m.ano === anoAtual);
 
   return (
     <div className="pb-16">
-      <header className="mb-6">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
-          Dashboard PRODES · modo apresentação
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
+            Dashboard PRODES · modo apresentação
+          </div>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">
+            <span style={{ color: COR }}>PRODES</span> Cerrado{" "}
+            <span className="text-[var(--text-muted)]">— {anoAtual}</span>
+          </h1>
+          {anoParcial && (
+            <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-500">
+              <AlertTriangle className="h-3 w-3" strokeWidth={2} />
+              Ciclo em aberto — PRODES publica em outubro
+            </p>
+          )}
         </div>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-          <span style={{ color: COR }}>PRODES</span> Cerrado{" "}
-          <span className="text-[var(--text-muted)]">— {anoAtual}</span>
-        </h1>
+        <AnoSeletor anos={anosDisponiveis} anoAtual={anoAtual} />
       </header>
 
       <SlideDeck backHref="/monitoramento/prodes" toc={TOC} corTema={COR} tituloModulo="PRODES">
@@ -114,6 +158,13 @@ export function ProdesDashboardView({
           corTema={COR}
         >
           <SlideKpiRow atual={atual} totalizadores={{ total, conc, disc, sem }} />
+          <NotaContexto>
+            <strong>Concordância</strong> = alerta MapBiomas confirmado pelo
+            polígono PRODES no mesmo ano. <strong>Discordante</strong> =
+            MapBiomas detectou mas PRODES não confirmou (falso positivo
+            provável). <strong>Sem PRODES</strong> = ainda não coberto pelo
+            ciclo anual (publicado em outubro).
+          </NotaContexto>
         </Slide>
 
         {/* SLIDE 2 — EVOLUÇÃO TEMPORAL */}
@@ -126,6 +177,12 @@ export function ProdesDashboardView({
           corTema={COR}
         >
           <ConcordanciaTempo ciclos={publicados} />
+          <NotaContexto>
+            Linha cheia (concordância) subindo = MapBiomas e PRODES estão cada
+            vez mais alinhados. Linha tracejada (cobertura média) mede o
+            percentual médio do polígono de alerta que o PRODES efetivamente
+            confirmou.
+          </NotaContexto>
         </Slide>
 
         {/* SLIDE 3 — VETOR DE PRESSÃO */}
@@ -138,6 +195,12 @@ export function ProdesDashboardView({
           corTema={COR}
         >
           <VetoresChart vetores={vetores} />
+          <NotaContexto>
+            Cada barra é um vetor de pressão registrado na tabela de alertas.
+            Agricultura domina o Cerrado piauiense; vetores emergentes
+            (mineração, energia renovável) valem monitoramento apesar do
+            volume menor — costumam gerar impacto ambiental desproporcional.
+          </NotaContexto>
         </Slide>
 
         {/* SLIDE 4 — DISTRIBUIÇÃO DE COBERTURA */}
@@ -150,6 +213,13 @@ export function ProdesDashboardView({
           corTema={COR}
         >
           <CoberturaChart cobertura={cobertura} />
+          <NotaContexto>
+            Cada faixa mostra quantos alertas MapBiomas têm o dado percentual
+            de sobreposição com polígono PRODES. Faixa <strong>0%</strong>
+            concentra os alertas <em>discordantes</em>. Faixa
+            <strong> 90-100%</strong>: dupla confirmação forte — prioritário
+            para autuação.
+          </NotaContexto>
         </Slide>
 
         {/* SLIDE 5 — TOP MUNICÍPIOS */}
@@ -158,28 +228,40 @@ export function ProdesDashboardView({
           index={5}
           total={TOC.length}
           title="Top municípios validados"
-          subtitle="Onde MapBiomas e PRODES mais concordam sobre desmatamento — maior área com dupla confirmação."
+          subtitle={`Onde MapBiomas e PRODES mais concordam sobre desmatamento em ${anoAtual} — maior área com dupla confirmação.`}
           corTema={COR}
           fluid
         >
-          <motion.div variants={fadeSlideUp}>
-            <MapaChoropleth
-              dados={topMunicipios.map((m) => ({
-                municipio: m.municipio,
-                valor: Math.round(Number(m.totalHa)),
-              }))}
-              cor={COR}
-              labelMetrica="Área validada"
-              sufixo="ha"
-            />
-          </motion.div>
-          <RankingMunicipal top={topMunicipios} />
+          <MapaMunicipalProdes topMunicipios={topMunicipiosAno} anoAtual={anoAtual} />
+          <NotaContexto>
+            Escala log de área validada — municípios sem alerta ficam em
+            cinza claro. A validação cruzada mostra concentração espacial
+            dos alertas de dupla fonte.
+          </NotaContexto>
+          <RankingMunicipal top={topMunicipiosAno.length > 0 ? topMunicipiosAno : topMunicipios.slice(0, 20)} />
         </Slide>
 
-        {/* SLIDE 6 — CGEO+ */}
+        {/* SLIDE 6 — COMPARATIVO ANO A ANO DESDE 2022 */}
+        <Slide
+          id="base2022"
+          index={6}
+          total={TOC.length}
+          title={`Comparativo desde ${ANO_MIN}`}
+          subtitle={`${ANO_MIN} é o marco temporal do projeto REDD+ Piauí. Deltas de concordância vs. o ano-base.`}
+          corTema={COR}
+        >
+          <ComparativoBaseProdes base={base} publicados={publicados} />
+          <NotaContexto>
+            Deltas de <strong>concordância</strong> vs. {ANO_MIN}: verde =
+            mais dupla confirmação (bom); vermelho = menos. Anos com ciclo
+            em aberto (n_total = 0) não entram no comparativo.
+          </NotaContexto>
+        </Slide>
+
+        {/* SLIDE 7 — CGEO+ */}
         <Slide
           id="cgeo"
-          index={6}
+          index={7}
           total={TOC.length}
           title="Leitura CGEO+"
           subtitle="Perfil unificado do município + IPA composto."
@@ -187,6 +269,13 @@ export function ProdesDashboardView({
           fluid
         >
           <IpaRanking ipa={ipaRanking} anoAtual={anoAtual} />
+          <NotaContexto>
+            IPA (0-100) = 50% <strong>IPI</strong> (Índice de Pressão
+            Irregular · MapBiomas) + 30% <strong>Fogo</strong> em áreas
+            prioritárias (Queimadas AQ1km) + 20% <strong>ΔPR</strong>
+            (divergência PRODES × MapBiomas). Renormaliza pesos quando faltar
+            cobertura em alguma fonte.
+          </NotaContexto>
           <AssinaturaAmbientalCard
             corTema={COR}
             municipios={topMunicipios.slice(0, 8).map((m) => m.municipio)}
@@ -194,6 +283,241 @@ export function ProdesDashboardView({
         </Slide>
       </SlideDeck>
     </div>
+  );
+}
+
+/* ==========================================================================
+   Seletor de ano + Mapa municipal + Comparativo 2022
+   ========================================================================== */
+
+function AnoSeletor({ anos, anoAtual }: { anos: number[]; anoAtual: number }) {
+  const router = useRouter();
+  return (
+    <div className="flex flex-wrap items-center gap-1 rounded-full border bg-[var(--surface)] p-1">
+      <span className="px-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
+        Ano
+      </span>
+      {anos.map((a) => (
+        <button
+          key={a}
+          onClick={() => router.push(`?ano=${a}`, { scroll: false })}
+          className={`rounded-full px-3 py-1 text-[12px] font-medium tabular-nums transition-colors ${
+            a === anoAtual
+              ? "bg-[var(--elevated)] text-[var(--text)] shadow-[var(--shadow-sm)]"
+              : "text-[var(--text-muted)] hover:text-[var(--text)]"
+          }`}
+          style={a === anoAtual ? { color: COR } : undefined}
+        >
+          {a}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function MapaMunicipalProdes({
+  topMunicipios,
+  anoAtual,
+}: {
+  topMunicipios: TopMun[];
+  anoAtual: number;
+}) {
+  const [selecionado, setSelecionado] = useState<TopMun | null>(null);
+  return (
+    <motion.div variants={fadeSlideUp} className="relative">
+      <MapaChoropleth
+        dados={topMunicipios.map((m) => ({
+          municipio: m.municipio,
+          valor: Math.round(Number(m.totalHa)),
+        }))}
+        cor={COR}
+        labelMetrica="Área validada"
+        sufixo="ha"
+        escalaLog={PRODES_ESCALA_LOG}
+        onSelect={(nome) => {
+          const m = topMunicipios.find(
+            (mm) => mm.municipio.toLowerCase() === nome.toLowerCase(),
+          );
+          if (m) setSelecionado(m);
+        }}
+      />
+      {selecionado && (
+        <div className="pointer-events-auto absolute right-4 top-4 z-20 w-64 max-w-[calc(100%-2rem)] rounded-2xl border bg-[var(--elevated)]/95 p-4 shadow-[var(--shadow-md)] backdrop-blur-md">
+          <ProdesMunicipioCard
+            municipio={selecionado}
+            anoAtual={anoAtual}
+            onClose={() => setSelecionado(null)}
+          />
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+function ProdesMunicipioCard({
+  municipio,
+  anoAtual,
+  onClose,
+}: {
+  municipio: TopMun;
+  anoAtual: number;
+  onClose: () => void;
+}) {
+  const pct = Number(municipio.pctConcordancia ?? 0);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
+            Município · ciclo {anoAtual}
+          </p>
+          <h4 className="truncate text-base font-semibold text-[var(--text)]" title={municipio.municipio}>
+            {municipio.municipio}
+          </h4>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-[var(--text-subtle)] hover:text-[var(--text)]"
+          aria-label="Fechar cartão"
+        >
+          ×
+        </button>
+      </div>
+      <dl className="grid grid-cols-2 gap-2 text-[11px]">
+        <div className="rounded-lg bg-[var(--surface)] p-2">
+          <dt className="text-[var(--text-subtle)]">Área total</dt>
+          <dd className="font-semibold tabular-nums text-[var(--text)]">
+            {formatNumber(Math.round(Number(municipio.totalHa)))} ha
+          </dd>
+        </div>
+        <div className="rounded-lg bg-[var(--surface)] p-2">
+          <dt className="text-[var(--text-subtle)]">Concordante</dt>
+          <dd className="font-semibold tabular-nums" style={{ color: COR }}>
+            {formatNumber(Math.round(Number(municipio.concordanteHa)))} ha
+          </dd>
+        </div>
+        <div className="col-span-2 rounded-lg bg-[var(--surface)] p-2">
+          <dt className="text-[var(--text-subtle)]">% concordância</dt>
+          <dd
+            className="font-semibold tabular-nums"
+            style={{ color: pct >= 70 ? "#10B981" : pct >= 40 ? "#F59E0B" : "#EF4444" }}
+          >
+            {pct.toFixed(1)}%
+          </dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+function ComparativoBaseProdes({
+  base,
+  publicados,
+}: {
+  base: Ciclo | undefined;
+  publicados: Ciclo[];
+}) {
+  const linhas = useMemo(() => {
+    if (!base) return [];
+    const baseConc = Number(base.pctConcordancia ?? 0);
+    return publicados
+      .filter((c) => c.anoProdesRef >= base.anoProdesRef)
+      .map((c) => {
+        const conc = Number(c.pctConcordancia ?? 0);
+        return {
+          c,
+          deltaConc: Number((conc - baseConc).toFixed(1)),
+          deltaAlertas: c.nTotal - base.nTotal,
+        };
+      });
+  }, [base, publicados]);
+
+  if (!base) {
+    return (
+      <div className="rounded-2xl border bg-[var(--surface)] p-6 text-center text-sm text-[var(--text-muted)]">
+        Ainda não temos ciclo publicado em {ANO_MIN} para servir de base.
+      </div>
+    );
+  }
+
+  return (
+    <motion.div variants={fadeSlideUp} className="overflow-hidden rounded-2xl border">
+      <table className="w-full text-sm">
+        <thead className="bg-[var(--surface)] text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
+          <tr>
+            <th className="px-4 py-2.5">Ciclo</th>
+            <th className="px-4 py-2.5 text-right">Alertas</th>
+            <th className="px-4 py-2.5 text-right">Δ vs {base.anoProdesRef}</th>
+            <th className="px-4 py-2.5 text-right">Concordantes</th>
+            <th className="px-4 py-2.5 text-right">Discordantes</th>
+            <th className="px-4 py-2.5 text-right">Concordância</th>
+            <th className="px-4 py-2.5 text-right">Δ vs {base.anoProdesRef}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--border)]">
+          {linhas.map(({ c, deltaConc, deltaAlertas }) => {
+            const isBase = c.anoProdesRef === base.anoProdesRef;
+            return (
+              <tr key={c.anoProdesRef} className={`text-[13px] ${isBase ? "bg-[var(--surface)]/60" : ""}`}>
+                <td className="px-4 py-2 font-medium text-[var(--text)]">
+                  {c.anoProdesRef}
+                  {isBase && (
+                    <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-amber-500">
+                      base
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-2 text-right tabular-nums text-[var(--text)]">
+                  {formatNumber(c.nTotal)}
+                </td>
+                <td className="px-4 py-2 text-right">
+                  {isBase ? "—" : <DeltaChip value={deltaAlertas} bomSeNegativo={false} />}
+                </td>
+                <td className="px-4 py-2 text-right tabular-nums text-[var(--text)]">
+                  {formatNumber(c.nConcordantes)}
+                </td>
+                <td className="px-4 py-2 text-right tabular-nums text-[var(--text-muted)]">
+                  {formatNumber(c.nDiscordantes)}
+                </td>
+                <td className="px-4 py-2 text-right tabular-nums text-[var(--text)]">
+                  {Number(c.pctConcordancia ?? 0).toFixed(1)}%
+                </td>
+                <td className="px-4 py-2 text-right">
+                  {isBase ? "—" : <DeltaChip value={deltaConc} bomSeNegativo={false} sufixo="pp" />}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </motion.div>
+  );
+}
+
+function DeltaChip({
+  value,
+  bomSeNegativo,
+  sufixo = "",
+}: {
+  value: number;
+  bomSeNegativo: boolean;
+  sufixo?: string;
+}) {
+  if (value === 0) return <span className="text-[var(--text-subtle)]">±0{sufixo}</span>;
+  const positivo = value > 0;
+  const bom = bomSeNegativo ? !positivo : positivo;
+  const cor = bom ? "#10B981" : "#EF4444";
+  const Icon = positivo ? TrendingUp : TrendingDown;
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold tabular-nums"
+      style={{ backgroundColor: `${cor}15`, color: cor }}
+    >
+      <Icon className="h-3 w-3" strokeWidth={2.5} />
+      {positivo ? "+" : ""}
+      {Number.isInteger(value) ? formatNumber(value) : value.toFixed(1)}
+      {sufixo}
+    </span>
   );
 }
 

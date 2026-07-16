@@ -4,7 +4,7 @@ import { addMonths, differenceInDays, isBefore } from "date-fns";
 
 import { KpiAncora } from "@/components/monit-ext/kpi-ancora";
 import { Button } from "@/components/ui/button";
-import { CRONOGRAMA, TEMA_COR } from "@/lib/monit-ext/constants";
+import { CRONOGRAMA, TEMA_COR, anoRecenteCompleto } from "@/lib/monit-ext/constants";
 import {
   getQueimadasMunicipiosEmAlerta,
   getQueimadasSerieAnual,
@@ -27,8 +27,13 @@ export default async function Page() {
 
   if (serie.length === 0) return <EmptyState />;
 
-  const atual = serie.at(-1)!;
-  const anterior = serie.length >= 2 ? serie[serie.length - 2] : null;
+  // Ano-âncora da landing = último ano completo (evita mostrar 2026 parcial
+  // como se fosse o retrato oficial). Se a série não tem esse ano, cai no
+  // último ingerido.
+  const anoCompleto = anoRecenteCompleto();
+  const atual = serie.find((s) => s.ano === anoCompleto) ?? serie.at(-1)!;
+  const atualIdx = serie.findIndex((s) => s.ano === atual.ano);
+  const anterior = atualIdx > 0 ? serie[atualIdx - 1] : null;
   const [top, emAlerta] = await Promise.all([
     getQueimadasTopMunicipios(atual.ano, 6),
     getQueimadasMunicipiosEmAlerta(atual.ano),

@@ -198,12 +198,14 @@ export function Slide({ id, index, total, title, subtitle, corTema, children, fl
       variants={staggerContainer}
       transition={spring.gentle}
       className={cn(
-        "mb-8 flex flex-col rounded-3xl border bg-[var(--elevated)] p-6 shadow-[var(--shadow-sm)] lg:p-8",
-        fluid ? "" : "min-h-[calc(100vh-11rem)]",
+        "mb-8 flex flex-col rounded-3xl border bg-[var(--elevated)] p-6 shadow-[var(--shadow-sm)] lg:p-7",
+        // Não forçamos mais altura mínima da viewport — cria "buraco vazio" em
+        // slides curtos. Deixamos o conteúdo ditar a altura; a navegação por
+        // scroll snap continua funcionando via IntersectionObserver.
       )}
     >
       {/* Header do slide */}
-      <motion.header variants={variants} className="mb-6 flex items-baseline gap-3 border-b border-[var(--border)] pb-4">
+      <motion.header variants={variants} className="mb-5 flex items-baseline gap-3 border-b border-[var(--border)] pb-3">
         <span
           className="rounded-full px-2.5 py-0.5 text-[10px] font-bold tabular-nums tracking-wider"
           style={{ backgroundColor: `${corTema}20`, color: corTema }}
@@ -220,10 +222,9 @@ export function Slide({ id, index, total, title, subtitle, corTema, children, fl
         </div>
       </motion.header>
 
-      {/* Conteúdo — cresce para preencher o slide e fica centralizado quando é curto,
-       * eliminando a "faixa de vazio" no fim de slides com poucos KPIs.
+      {/* Conteúdo — altura natural, sem "esticar" para preencher tela cheia.
        * Stagger para os filhos diretos que expuserem `variants={fadeSlideUp}`. */}
-      <div className="flex flex-1 flex-col justify-center space-y-6">{children}</div>
+      <div className="flex flex-col space-y-5">{children}</div>
     </motion.section>
   );
 }

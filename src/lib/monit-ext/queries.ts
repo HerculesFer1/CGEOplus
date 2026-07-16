@@ -78,19 +78,30 @@ export async function getMapbiomasSerieMensal() {
     .orderBy(monitExtMapbiomasMensal.ano, monitExtMapbiomasMensal.mes);
 }
 
-/** Top N municípios do ano mais recente por ha_irregular. */
-export async function getMapbiomasTopMunicipios(limite = 20) {
-  const [ultimo] = await db
-    .select({ ano: sql<number>`MAX(${monitExtMapbiomasMunicipio.ano})` })
-    .from(monitExtMapbiomasMunicipio);
-  if (!ultimo?.ano) return { ano: null, rows: [] as MunicipioMapbiomas[] };
+/**
+ * Top N municípios de um ano específico por ha_irregular. Se `ano` for null,
+ * usa o ano mais recente ingerido. Retorna sempre o ano usado para que
+ * caller possa exibir na UI sem consultas extras.
+ */
+export async function getMapbiomasTopMunicipios(
+  ano: number | null,
+  limite = 20,
+) {
+  let anoUsado = ano;
+  if (anoUsado === null) {
+    const [ultimo] = await db
+      .select({ ano: sql<number>`MAX(${monitExtMapbiomasMunicipio.ano})` })
+      .from(monitExtMapbiomasMunicipio);
+    anoUsado = ultimo?.ano ?? null;
+  }
+  if (anoUsado === null) return { ano: null, rows: [] as MunicipioMapbiomas[] };
   const rows = await db
     .select()
     .from(monitExtMapbiomasMunicipio)
-    .where(eq(monitExtMapbiomasMunicipio.ano, ultimo.ano))
+    .where(eq(monitExtMapbiomasMunicipio.ano, anoUsado))
     .orderBy(desc(monitExtMapbiomasMunicipio.haIrregular))
     .limit(limite);
-  return { ano: ultimo.ano, rows };
+  return { ano: anoUsado, rows };
 }
 
 /** Snapshot completo por município do ano mais recente — alimenta choropleth. */

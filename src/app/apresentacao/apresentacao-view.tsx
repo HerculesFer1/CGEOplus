@@ -254,6 +254,15 @@ export function ApresentacaoView(props: Props) {
             Sair
           </button>
           <button
+            onClick={() => router.push("/apresentacao/dashboards")}
+            className="inline-flex h-9 items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 text-xs text-white/70 backdrop-blur hover:text-white"
+            aria-label="Montar roteiro de dashboards"
+            title="Apresentação encadeada de MapBiomas, PRODES, Queimadas…"
+          >
+            <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} />
+            Roteiro de dashboards
+          </button>
+          <button
             onClick={toggleFullscreen}
             className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 backdrop-blur hover:text-white"
             aria-label={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}

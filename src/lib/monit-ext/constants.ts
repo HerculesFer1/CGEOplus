@@ -78,3 +78,31 @@ export const MESES_LABEL = [
   "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
   "Jul", "Ago", "Set", "Out", "Nov", "Dez",
 ] as const;
+
+/** Menor ano da série (mesmo início do dashboard upstream). */
+export const ANO_MIN = 2022;
+
+/**
+ * Ano mais recente para o qual o mês 12 já deveria estar ingerido — usado
+ * como default nos dashboards para não mostrar métricas contaminadas por
+ * ano corrente parcial. Heurística casada com o upstream: INPE publica o
+ * mês N no início do N+1, então em jan/fev o "ano completo" é ano-2 e a
+ * partir de mar é ano-1. Chamadas no server são estáveis; no client, o
+ * componente re-avalia a cada render (nunca mais que 1× por dia na prática).
+ */
+export function anoRecenteCompleto(now: Date = new Date()): number {
+  const mesCorrente = now.getMonth() + 1;
+  const anoCorrente = now.getFullYear();
+  return mesCorrente >= 3 ? anoCorrente - 1 : anoCorrente - 2;
+}
+
+/** Escala log de área queimada por município — casa com a paleta AHP e
+ *  garante contraste no light/dark. Municípios sem dado usam o primeiro tom. */
+export const QUEIMADA_ESCALA_LOG: Array<{ limite: number; cor: string }> = [
+  { limite: 0, cor: "#F5F5F5" },
+  { limite: 1, cor: "#FEE8C8" },
+  { limite: 500, cor: "#FDBB84" },
+  { limite: 2000, cor: "#FC8D59" },
+  { limite: 5000, cor: "#E34A33" },
+  { limite: 10000, cor: "#B30000" },
+];
