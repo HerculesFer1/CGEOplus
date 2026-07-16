@@ -198,7 +198,7 @@ export function Slide({ id, index, total, title, subtitle, corTema, children, fl
       variants={staggerContainer}
       transition={spring.gentle}
       className={cn(
-        "mb-8 rounded-3xl border bg-[var(--elevated)] p-6 shadow-[var(--shadow-sm)] lg:p-8",
+        "mb-8 flex flex-col rounded-3xl border bg-[var(--elevated)] p-6 shadow-[var(--shadow-sm)] lg:p-8",
         fluid ? "" : "min-h-[calc(100vh-11rem)]",
       )}
     >
@@ -220,8 +220,10 @@ export function Slide({ id, index, total, title, subtitle, corTema, children, fl
         </div>
       </motion.header>
 
-      {/* Conteúdo — stagger para os filhos diretos que expuserem `variants={fadeSlideUp}`. */}
-      <div className="space-y-6">{children}</div>
+      {/* Conteúdo — cresce para preencher o slide e fica centralizado quando é curto,
+       * eliminando a "faixa de vazio" no fim de slides com poucos KPIs.
+       * Stagger para os filhos diretos que expuserem `variants={fadeSlideUp}`. */}
+      <div className="flex flex-1 flex-col justify-center space-y-6">{children}</div>
     </motion.section>
   );
 }

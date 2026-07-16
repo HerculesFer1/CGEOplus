@@ -3,6 +3,7 @@ import { Flame } from "lucide-react";
 import { TEMA_COR } from "@/lib/monit-ext/constants";
 import { getIpaRanking } from "@/lib/monit-ext/ipa";
 import {
+  getQueimadasMunicipiosAno,
   getQueimadasMunicipiosEmAlerta,
   getQueimadasRecorrentes,
   getQueimadasSazonalidadePorClasse,
@@ -31,9 +32,10 @@ export default async function Page() {
   }
 
   const anoAtual = serie.at(-1)!.ano;
-  const [top, emAlerta, sazonalidade, recorrentes, ipa] = await Promise.all([
+  const [top, emAlerta, todos, sazonalidade, recorrentes, ipa] = await Promise.all([
     getQueimadasTopMunicipios(anoAtual, 20),
     getQueimadasMunicipiosEmAlerta(anoAtual),
+    getQueimadasMunicipiosAno(anoAtual),
     getQueimadasSazonalidadePorClasse(anoAtual),
     getQueimadasRecorrentes(),
     getIpaRanking(anoAtual, 15),
@@ -44,6 +46,7 @@ export default async function Page() {
       serie={serie}
       topMunicipios={top}
       emAlerta={emAlerta}
+      municipiosAno={todos}
       sazonalidade={sazonalidade}
       recorrentes={recorrentes}
       ipaRanking={ipa}

@@ -19,6 +19,7 @@ import {
 } from "recharts";
 
 import { AssinaturaAmbientalCard } from "@/components/monit-ext/assinatura-ambiental";
+import { MapaChoropleth } from "@/components/monit-ext/mapa-choropleth";
 import { Slide, SlideDeck } from "@/components/monit-ext/slide-deck";
 import { fadeSlideUp, staggerContainer } from "@/lib/design/motion";
 import { MESES_LABEL, TEMA_COR } from "@/lib/monit-ext/constants";
@@ -71,6 +72,7 @@ interface Props {
   serie: SerieAno[];
   topMunicipios: MunicipioAno[];
   emAlerta: MunicipioAno[];
+  municipiosAno: MunicipioAno[];
   sazonalidade: SazonalidadeRow[];
   recorrentes: Recorrente[];
   ipaRanking: IpaMunicipio[];
@@ -91,6 +93,7 @@ export function QueimadasDashboardView({
   serie,
   topMunicipios,
   emAlerta,
+  municipiosAno,
   sazonalidade,
   recorrentes,
   ipaRanking,
@@ -152,10 +155,21 @@ export function QueimadasDashboardView({
           index={3}
           total={TOC.length}
           title="Panorama municipal"
-          subtitle={`Top 20 municípios em ${anoAtual}. Marcados em vermelho: em alerta CGEO+ (AHP 4-5 + >50% prioritária).`}
+          subtitle={`Área queimada por município em ${anoAtual}. Ranking marca em vermelho os municípios em alerta CGEO+ (AHP 4-5 + >50% prioritária).`}
           corTema={COR}
           fluid
         >
+          <motion.div variants={fadeSlideUp}>
+            <MapaChoropleth
+              dados={municipiosAno.map((m) => ({
+                municipio: m.municipioNome,
+                valor: Math.round(Number(m.areaQueimadaTotalHa)),
+              }))}
+              cor={COR}
+              labelMetrica="Área queimada"
+              sufixo="ha"
+            />
+          </motion.div>
           <RankingMunicipal top={topMunicipios} />
         </Slide>
 

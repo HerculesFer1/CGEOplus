@@ -34,8 +34,11 @@ interface Props {
 }
 
 export function ProdesLandingCharts({ ciclos, top, corTema }: Props) {
+  // Só ciclos publicados (com validação cruzada concluída); ciclo do ano
+  // corrente pode existir com pctConcordancia="0.00" enquanto o PRODES
+  // não publica em outubro — filtrar por nTotal > 0.
   const serie = ciclos
-    .filter((c) => c.pctConcordancia !== null)
+    .filter((c) => c.nTotal > 0)
     .map((c) => ({ ano: c.anoProdesRef, pct: Number(c.pctConcordancia) }));
 
   const topData = top.slice(0, 6).map((m) => ({

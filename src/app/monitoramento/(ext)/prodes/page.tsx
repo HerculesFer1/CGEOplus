@@ -27,7 +27,10 @@ export default async function Page() {
 
   if (ciclos.length === 0) return <EmptyState />;
 
-  const publicados = ciclos.filter((c) => c.pctConcordancia !== null);
+  // Ciclo "publicado" = validação cruzada concluída (n_total > 0).
+  // PRODES-Cerrado só publica em out; ciclos abertos ficam com n_total=0 e
+  // pctConcordancia="0.00", então filtrar por !== null não basta.
+  const publicados = ciclos.filter((c) => c.nTotal > 0);
   const atual = publicados[publicados.length - 1] ?? ciclos[ciclos.length - 1];
   const anterior = publicados.length >= 2 ? publicados[publicados.length - 2] : null;
 

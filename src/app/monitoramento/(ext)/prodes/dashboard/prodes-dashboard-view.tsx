@@ -15,6 +15,7 @@ import {
 } from "recharts";
 
 import { AssinaturaAmbientalCard } from "@/components/monit-ext/assinatura-ambiental";
+import { MapaChoropleth } from "@/components/monit-ext/mapa-choropleth";
 import { Slide, SlideDeck } from "@/components/monit-ext/slide-deck";
 import { fadeSlideUp, staggerContainer } from "@/lib/design/motion";
 import { TEMA_COR } from "@/lib/monit-ext/constants";
@@ -78,12 +79,17 @@ export function ProdesDashboardView({
   ipaRanking,
   anoAtual,
 }: Props) {
-  const publicados = ciclos.filter((c) => c.pctConcordancia !== null);
+  // Ciclos "publicados" = com validação cruzada concluída (n_total > 0).
+  // O ciclo do ano corrente pode existir com n_total=0 até o PRODES publicar (out).
+  const publicados = ciclos.filter((c) => c.nTotal > 0);
   const atual = publicados.at(-1) ?? ciclos.at(-1)!;
-  const total = ciclos.reduce((s, c) => s + c.nTotal, 0);
-  const conc = ciclos.reduce((s, c) => s + c.nConcordantes, 0);
-  const disc = ciclos.reduce((s, c) => s + c.nDiscordantes, 0);
-  const sem = ciclos.reduce((s, c) => s + c.nSemProdes, 0);
+  // Totalizadores só somam ciclos publicados — o card diz "acumulados nos
+  // ciclos publicados" e incluir 2026 (só sem_prodes=747) contaria como
+  // discordância o que na verdade é ciclo em aberto.
+  const total = publicados.reduce((s, c) => s + c.nTotal, 0);
+  const conc = publicados.reduce((s, c) => s + c.nConcordantes, 0);
+  const disc = publicados.reduce((s, c) => s + c.nDiscordantes, 0);
+  const sem = publicados.reduce((s, c) => s + c.nSemProdes, 0);
 
   return (
     <div className="pb-16">
@@ -156,6 +162,17 @@ export function ProdesDashboardView({
           corTema={COR}
           fluid
         >
+          <motion.div variants={fadeSlideUp}>
+            <MapaChoropleth
+              dados={topMunicipios.map((m) => ({
+                municipio: m.municipio,
+                valor: Math.round(Number(m.totalHa)),
+              }))}
+              cor={COR}
+              labelMetrica="Área validada"
+              sufixo="ha"
+            />
+          </motion.div>
           <RankingMunicipal top={topMunicipios} />
         </Slide>
 

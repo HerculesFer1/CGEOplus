@@ -21,6 +21,7 @@ import {
 
 import { Slide, SlideDeck } from "@/components/monit-ext/slide-deck";
 import { AssinaturaAmbientalCard } from "@/components/monit-ext/assinatura-ambiental";
+import { MapaChoropleth } from "@/components/monit-ext/mapa-choropleth";
 import { fadeSlideUp, staggerContainer } from "@/lib/design/motion";
 import { MESES_LABEL, TEMA_COR } from "@/lib/monit-ext/constants";
 import type { IpaMunicipio } from "@/lib/monit-ext/ipa";
@@ -120,10 +121,21 @@ export function MapbiomasDashboardView({
           index={3}
           total={TOC.length}
           title="Panorama municipal"
-          subtitle={`Top 20 municípios por área irregular em ${anoAtual}. Concentração espacial do problema.`}
+          subtitle={`Área irregular por município em ${anoAtual}. Concentração espacial do problema.`}
           corTema={COR}
           fluid
         >
+          <motion.div variants={fadeSlideUp}>
+            <MapaChoropleth
+              dados={municipiosAtual.map((m) => ({
+                municipio: m.municipio,
+                valor: Math.round(Number(m.haIrregular)),
+              }))}
+              cor={COR}
+              labelMetrica="Área irregular"
+              sufixo="ha"
+            />
+          </motion.div>
           <RankingMunicipal top={topMunicipios} totalMunicipios={municipiosAtual.length} />
         </Slide>
 
