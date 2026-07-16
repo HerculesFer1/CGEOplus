@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowDownRight, ArrowRight, ArrowUpRight, LucideIcon } from "lucide-react";
+import { ArrowDownRight, ArrowRight, ArrowUpRight, FileText } from "lucide-react";
 import Link from "next/link";
 
 import { fadeSlideUp, staggerContainer } from "@/lib/design/motion";
@@ -34,7 +34,6 @@ export interface KpiAncoraProps {
   municipioCriticoNome: string | null;
   municipioCriticoValor: string | null;
   municipioCriticoLink: string;
-  municipioCriticoIcon: LucideIcon;
 
   proximaAtualizacaoLabel: string;
   ultimaAtualizacaoLabel: string;
@@ -148,7 +147,7 @@ export function KpiAncora(props: KpiAncoraProps) {
               href={props.municipioCriticoLink}
               className="mt-4 inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text)] hover:underline"
             >
-              <props.municipioCriticoIcon className="h-3.5 w-3.5" strokeWidth={2} />
+              <FileText className="h-3.5 w-3.5" strokeWidth={2} />
               Ver processos relacionados
               <ArrowRight className="h-3 w-3" strokeWidth={2} />
             </Link>

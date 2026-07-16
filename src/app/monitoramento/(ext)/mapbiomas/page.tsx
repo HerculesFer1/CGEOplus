@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText, Sprout } from "lucide-react";
+import { Sprout } from "lucide-react";
 import { addMonths, differenceInDays, isBefore } from "date-fns";
 
 import { KpiAncora } from "@/components/monit-ext/kpi-ancora";
@@ -77,7 +77,6 @@ export default async function Page() {
         municipioCriticoNome={critico?.municipio ?? null}
         municipioCriticoValor={criticoValor}
         municipioCriticoLink={`/monitoramento/processos?municipio=${encodeURIComponent(critico?.municipio ?? "")}`}
-        municipioCriticoIcon={FileText}
         proximaAtualizacaoLabel={proxima}
         ultimaAtualizacaoLabel={ultima}
         dashboardHref="/monitoramento/mapbiomas/dashboard"

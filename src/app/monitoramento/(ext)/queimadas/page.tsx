@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, FileText, Flame } from "lucide-react";
+import { AlertTriangle, Flame } from "lucide-react";
 import { addMonths, differenceInDays, isBefore } from "date-fns";
 
 import { KpiAncora } from "@/components/monit-ext/kpi-ancora";
@@ -76,7 +76,6 @@ export default async function Page() {
         municipioCriticoNome={critico?.municipioNome ?? null}
         municipioCriticoValor={criticoValor}
         municipioCriticoLink={`/monitoramento/processos?municipio=${encodeURIComponent(critico?.municipioNome ?? "")}`}
-        municipioCriticoIcon={FileText}
         proximaAtualizacaoLabel={formatRel(proximaQueimadas(now), now, "em")}
         ultimaAtualizacaoLabel={ultima?.executadoEm ? formatRel(ultima.executadoEm, now, "há") : "aguardando 1º sync"}
         dashboardHref="/monitoramento/queimadas/dashboard"

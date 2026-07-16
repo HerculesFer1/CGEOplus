@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText, Satellite } from "lucide-react";
+import { Satellite } from "lucide-react";
 import { addYears, differenceInDays, isBefore } from "date-fns";
 
 import { KpiAncora } from "@/components/monit-ext/kpi-ancora";
@@ -74,7 +74,6 @@ export default async function Page() {
         municipioCriticoNome={critico?.municipio ?? null}
         municipioCriticoValor={criticoValor}
         municipioCriticoLink={`/monitoramento/processos?municipio=${encodeURIComponent(critico?.municipio ?? "")}`}
-        municipioCriticoIcon={FileText}
         proximaAtualizacaoLabel={formatRel(proximaProdes(now), now, "em")}
         ultimaAtualizacaoLabel={
           ultima?.executadoEm ? formatRel(ultima.executadoEm, now, "há") : "aguardando 1º sync"
