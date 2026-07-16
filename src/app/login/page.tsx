@@ -3,16 +3,17 @@
 import { motion } from "framer-motion";
 import { ArrowLeft, Lock, Mail } from "lucide-react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState, useTransition } from "react";
 
 import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClient } from "@/lib/supabase/client";
 import { fadeSlideUp, staggerContainer } from "@/lib/design/motion";
+
+import { signInAction } from "./actions";
 
 export default function LoginPage() {
   return (
@@ -23,39 +24,25 @@ export default function LoginPage() {
 }
 
 function LoginContent() {
-  const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") ?? "/dashboard";
 
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
-
-    try {
-      const supabase = createClient();
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password: senha,
-      });
-
-      if (authError) {
-        setError(translateAuthError(authError.message));
-        setLoading(false);
-        return;
+    startTransition(async () => {
+      const res = await signInAction({ email, senha, next });
+      // Sucesso: a Server Action faz redirect(); a transição segue e desmonta a tela.
+      // Erro: retorna { ok: false, error } e mostramos aqui.
+      if (res && !res.ok) {
+        setError(res.error);
       }
-
-      router.push(next);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao autenticar.");
-      setLoading(false);
-    }
+    });
   }
 
   return (
@@ -121,7 +108,7 @@ function LoginContent() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="voce@gmail.com"
                 className="pl-9"
-                disabled={loading}
+                disabled={isPending}
               />
             </div>
           </div>
@@ -147,7 +134,7 @@ function LoginContent() {
                 onChange={(e) => setSenha(e.target.value)}
                 placeholder="••••••••"
                 className="pl-9"
-                disabled={loading}
+                disabled={isPending}
               />
             </div>
           </div>
@@ -155,10 +142,10 @@ function LoginContent() {
           <Button
             type="submit"
             size="lg"
-            disabled={loading}
+            disabled={isPending}
             className="mt-2 w-full"
           >
-            {loading ? "Entrando..." : "Entrar"}
+            {isPending ? "Entrando..." : "Entrar"}
           </Button>
 
           {error && (
@@ -193,18 +180,4 @@ function LoginContent() {
       </motion.div>
     </div>
   );
-}
-
-function translateAuthError(message: string): string {
-  const m = message.toLowerCase();
-  if (m.includes("invalid login credentials")) {
-    return "Email ou senha incorretos.";
-  }
-  if (m.includes("email not confirmed")) {
-    return "Confirme seu email antes de entrar.";
-  }
-  if (m.includes("too many requests") || m.includes("rate")) {
-    return "Muitas tentativas. Aguarde alguns minutos e tente de novo.";
-  }
-  return "Não foi possível entrar. Tente novamente.";
 }
