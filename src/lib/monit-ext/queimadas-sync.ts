@@ -59,6 +59,8 @@ interface SyncResult {
     anos: number;
     municipiosAno: number;
     mesClasse: number;
+    /** Linhas brutas do upstream antes da agregação por chave (auditoria). */
+    mesClasseBrutos?: number;
   };
   fonteUrl: string;
 }
@@ -82,13 +84,17 @@ export async function syncQueimadas(): Promise<SyncResult> {
       select:
         "municipio_cod,municipio_nome,ano,area_queimada_total_ha," +
         "n_cicatrizes_total,classe_max_queimada,pct_area_prioritaria,mes_pico",
-      order: "ano.desc,area_queimada_total_ha.desc",
+      // `municipio_cod` como tiebreaker torna a paginação por offset
+      // determinística (a tabela passa de 1000 linhas → 2+ páginas).
+      order: "ano.desc,area_queimada_total_ha.desc,municipio_cod.asc",
     }),
     fetchPostgrest<QbCicatrizClasse>("qb_cicatrizes_classes", {
       select:
         "municipio_cod,ano,mes,classe_prioridade,prioridade_label," +
         "area_queimada_ha,n_cicatrizes",
-      order: "ano.desc,mes.asc",
+      // Ordenação pela PK completa — sem tiebreaker único, a paginação por
+      // offset em ~19k linhas pode pular/duplicar registros entre páginas.
+      order: "ano.desc,mes.asc,municipio_cod.asc,classe_prioridade.asc",
       pageSize: 1000,
     }),
   ]);
@@ -131,20 +137,51 @@ export async function syncQueimadas(): Promise<SyncResult> {
     await db.execute(upsertMunicipiosAnoSql(chunk));
   }
 
-  // Granular mês × classe — chunks de 1000, ~19 chunks total.
-  for (const chunk of chunked(mesClasse, 1000)) {
+  // Granular mês × classe — o upstream `qb_cicatrizes_classes` tem linhas
+  // duplicadas na chave (municipio_cod, ano, mes, classe) que precisam ser
+  // SOMADAS, não sobrescritas. Agregamos em JS antes do upsert: assim uma sync
+  // produz uma linha por chave com a área somada, e o `ON CONFLICT DO UPDATE`
+  // continua idempotente entre syncs (sobrescreve com o valor já somado). Sem
+  // isso, o "keep-last" descartava ~3-7% da área nos gráficos por classe.
+  const mesClasseAgg = agregarMesClasse(mesClasse);
+
+  // chunks de 1000, ~19 chunks total.
+  for (const chunk of chunked(mesClasseAgg, 1000)) {
     await db.execute(upsertMesClasseSql(chunk));
   }
 
   return {
-    registrosInseridos: anos.length + municipiosAno.length + mesClasse.length,
+    registrosInseridos: anos.length + municipiosAno.length + mesClasseAgg.length,
     detalhes: {
       anos: anos.length,
       municipiosAno: municipiosAno.length,
-      mesClasse: mesClasse.length,
+      mesClasse: mesClasseAgg.length,
+      mesClasseBrutos: mesClasse.length,
     },
     fonteUrl: `${UPSTREAM_SUPABASE_URL}/qb_*`,
   };
+}
+
+/** Soma linhas do upstream que colidem na chave (municipio_cod, ano, mes,
+ *  classe_prioridade) — o `qb_cicatrizes_classes` tem duplicatas legítimas que
+ *  representam parcelas da mesma célula. Retorna uma linha por chave. */
+function agregarMesClasse(rows: QbCicatrizClasse[]): QbCicatrizClasse[] {
+  const map = new Map<string, QbCicatrizClasse>();
+  for (const r of rows) {
+    const key = `${r.municipio_cod}|${r.ano}|${r.mes}|${r.classe_prioridade}`;
+    const existing = map.get(key);
+    const area = Number(r.area_queimada_ha) || 0;
+    const cic = r.n_cicatrizes ?? 0;
+    if (!existing) {
+      map.set(key, { ...r, area_queimada_ha: area, n_cicatrizes: cic });
+    } else {
+      existing.area_queimada_ha = (Number(existing.area_queimada_ha) || 0) + area;
+      existing.n_cicatrizes = (existing.n_cicatrizes ?? 0) + cic;
+      // Mantém um rótulo não-nulo se aparecer.
+      if (r.prioridade_label != null) existing.prioridade_label = r.prioridade_label;
+    }
+  }
+  return [...map.values()];
 }
 
 function* chunked<T>(rows: T[], size: number): Generator<T[]> {

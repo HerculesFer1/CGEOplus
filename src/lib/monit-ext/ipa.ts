@@ -17,7 +17,10 @@
 import { sql } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
-import { IPA_PESOS } from "./constants";
+import { computeIpaScore } from "./ipa-score";
+
+export type { IpaEntradas, IpaScore } from "./ipa-score";
+export { computeIpaScore } from "./ipa-score";
 
 export interface IpaMunicipio {
   municipio: string;
@@ -76,30 +79,12 @@ export async function getIpaRanking(ano: number, limite = 30): Promise<IpaMunici
   }>;
 
   const scored: IpaMunicipio[] = arr.map((r) => {
-    const ipi = toNum(r.pct_irregular);
-    const prio = toNum(r.pct_prio);
-    const conc = toNum(r.pct_conc);
-    const divProdes = conc !== null ? Math.max(0, 100 - conc) : null;
-
-    // Renormaliza pesos para os presentes.
-    const parcelas: Array<[number, number]> = [];
-    if (ipi !== null) parcelas.push([IPA_PESOS.ipi, ipi]);
-    if (prio !== null) parcelas.push([IPA_PESOS.fogoEmPrioritaria, prio]);
-    if (divProdes !== null) parcelas.push([IPA_PESOS.divergenciaProdes, divProdes]);
-
-    const somaPesos = parcelas.reduce((s, [w]) => s + w, 0);
-    const ipa = somaPesos > 0
-      ? parcelas.reduce((s, [w, v]) => s + (w / somaPesos) * v, 0)
-      : 0;
-
-    return {
-      municipio: r.municipio,
-      ipa: Math.round(ipa * 10) / 10,
-      parcIpi: ipi,
-      parcQueimadas: prio,
-      parcProdes: divProdes,
-      ano,
-    };
+    const score = computeIpaScore({
+      ipi: toNum(r.pct_irregular),
+      prioridade: toNum(r.pct_prio),
+      concordancia: toNum(r.pct_conc),
+    });
+    return { municipio: r.municipio, ...score, ano };
   });
 
   scored.sort((a, b) => b.ipa - a.ipa);

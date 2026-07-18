@@ -140,6 +140,12 @@ export function QueimadasDashboardView({
   // com dados, que é o retrato mais recente.
   const anoConcreto: number =
     anoAtual === "all" ? serie.at(-1)?.ano ?? new Date().getFullYear() : anoAtual;
+  // Total autoritativo do ano que a sazonalidade cobre (mesmo ano de
+  // `anoConcreto`) — usado para reconciliar o gráfico por classe com o KPI,
+  // fechando a diferença como faixa "Não classificada".
+  const areaConcreto = Number(
+    serie.find((s) => s.ano === anoConcreto)?.areaQueimadaHa ?? 0,
+  );
 
   return (
     <div className="pb-16">
@@ -197,12 +203,14 @@ export function QueimadasDashboardView({
           subtitle="Distribuição da área queimada pelas 5 classes de prioridade ambiental (AHP)."
           corTema={COR}
         >
-          <ClassesDist sazonalidade={sazonalidade} />
+          <ClassesDist sazonalidade={sazonalidade} areaReferencia={areaConcreto} />
           <NotaContexto>
             AHP (<em>Analytic Hierarchy Process</em>) ordena o território em 5
             classes de prioridade para conservação — 1 muito baixa, 5 muito
             alta. Fogo em classes 4-5 pressiona diretamente as áreas que a
-            política pública quer proteger.
+            política pública quer proteger. A faixa <strong>Não classificada</strong>{" "}
+            é a área queimada fora das zonas classificadas por AHP — ela fecha o
+            gráfico com o total do ano (KPI), evitando subnotificação visual.
           </NotaContexto>
         </Slide>
 
@@ -697,18 +705,47 @@ function AlertaBanner({ emAlerta, anoAtual }: { emAlerta: MunicipioAno[]; anoAtu
    SLIDE 2 — Classes
    ========================================================================== */
 
-function ClassesDist({ sazonalidade }: { sazonalidade: SazonalidadeRow[] }) {
+/** Cinza neutro para a faixa residual "Não classificada" (área fora das
+ *  classes AHP), legível em light/dark. */
+const COR_NAO_CLASSIFICADA = "#94A3B8";
+
+function ClassesDist({
+  sazonalidade,
+  areaReferencia,
+}: {
+  sazonalidade: SazonalidadeRow[];
+  /** Total de área queimada do ano (KPI autoritativo) — a diferença para a
+   *  soma das classes vira a faixa "Não classificada". */
+  areaReferencia: number;
+}) {
   const porClasse = new Map<number, number>();
   for (const r of sazonalidade) {
     const acc = porClasse.get(r.classePrioridade) ?? 0;
     porClasse.set(r.classePrioridade, acc + Number(r.areaHa));
   }
-  const data = [1, 2, 3, 4, 5].map((c) => ({
+  const dataClasses = [1, 2, 3, 4, 5].map((c) => ({
     classe: LABEL_AHP[c],
     area: Math.round(porClasse.get(c) ?? 0),
     cor: CORES_AHP[c - 1],
     critica: c >= 4,
   }));
+  const somaClasses = dataClasses.reduce((s, d) => s + d.area, 0);
+  // Reconcilia com o total do ano: o que não caiu em classe AHP vira faixa
+  // residual. Só entra quando positivo (o cruzamento por classe pode, em anos
+  // específicos, exceder levemente o total municipal — nesse caso omitimos).
+  const naoClassificada = Math.max(0, Math.round(areaReferencia) - somaClasses);
+  const data =
+    naoClassificada > 0
+      ? [
+          ...dataClasses,
+          {
+            classe: "Não classificada",
+            area: naoClassificada,
+            cor: COR_NAO_CLASSIFICADA,
+            critica: false,
+          },
+        ]
+      : dataClasses;
   const total = data.reduce((s, d) => s + d.area, 0);
 
   return (

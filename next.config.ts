@@ -12,6 +12,16 @@ const nextConfig: NextConfig = {
   },
 
   /**
+   * Garante que os `.md` da documentação (`docs/metodologia/`) entrem no bundle
+   * serverless do Vercel — a rota `/docs/[slug]` os lê via `fs`. As páginas são
+   * pré-geradas (SSG), então na prática o conteúdo é lido no build; isto é
+   * salvaguarda caso a rota passe a renderizar sob demanda.
+   */
+  outputFileTracingIncludes: {
+    "/docs/[slug]": ["./docs/metodologia/**/*"],
+  },
+
+  /**
    * Redirects de singular → plural.
    * Corrige URLs digitadas manualmente ou favoritos antigos que
    * usam o nome do módulo no singular.

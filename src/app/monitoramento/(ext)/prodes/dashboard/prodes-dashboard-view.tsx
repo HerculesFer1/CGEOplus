@@ -136,12 +136,38 @@ export function ProdesDashboardView({
     anoAtual === "all"
       ? publicados.at(-1)?.anoProdesRef ?? new Date().getFullYear()
       : anoAtual;
-  // Em "Todos os anos", mostra todos os municípios (sem filtro por ano).
-  // Em ano específico, filtra os que têm registro no ciclo daquele ano.
-  const topMunicipiosAno =
-    anoAtual === "all"
-      ? topMunicipios
-      : topMunicipios.filter((m) => m.ano === anoAtual);
+  // Em "Todos os anos", agrega por município somando a área validada e
+  // detectada de todos os ciclos (antes passava as linhas município×ano
+  // duplicadas, e o choropleth — que indexa por município — só guardava o
+  // valor do último ciclo, distorcendo o mapa). Em ano específico, filtra os
+  // que têm registro no ciclo daquele ano.
+  const topMunicipiosAno = useMemo(() => {
+    if (anoAtual !== "all") {
+      return topMunicipios.filter((m) => m.ano === anoAtual);
+    }
+    const porMunicipio = new Map<string, TopMun>();
+    for (const m of topMunicipios) {
+      const acc = porMunicipio.get(m.municipio);
+      if (!acc) {
+        porMunicipio.set(m.municipio, { ...m });
+      } else {
+        acc.concordanteHa = String(
+          Number(acc.concordanteHa) + Number(m.concordanteHa),
+        );
+        acc.totalHa = String(Number(acc.totalHa) + Number(m.totalHa));
+        acc.ano = Math.max(acc.ano, m.ano);
+      }
+    }
+    return [...porMunicipio.values()]
+      .map((m) => ({
+        ...m,
+        pctConcordancia:
+          Number(m.totalHa) > 0
+            ? ((Number(m.concordanteHa) / Number(m.totalHa)) * 100).toFixed(2)
+            : "0",
+      }))
+      .sort((a, b) => Number(b.totalHa) - Number(a.totalHa));
+  }, [anoAtual, topMunicipios]);
 
   return (
     <div className="pb-16">
@@ -249,7 +275,10 @@ export function ProdesDashboardView({
           corTema={COR}
           fluid
         >
-          <MapaMunicipalProdes topMunicipios={topMunicipiosAno} anoAtual={anoConcreto} />
+          <MapaMunicipalProdes
+            topMunicipios={topMunicipiosAno.length > 0 ? topMunicipiosAno : topMunicipios}
+            anoAtual={anoConcreto}
+          />
           <NotaContexto>
             Escala log de área validada — municípios sem alerta ficam em
             cinza claro. A validação cruzada mostra concentração espacial

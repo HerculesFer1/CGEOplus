@@ -2,6 +2,7 @@ import { Sprout } from "lucide-react";
 
 import { getIpaRanking } from "@/lib/monit-ext/ipa";
 import {
+  getMapbiomasMunicipiosAgregado,
   getMapbiomasMunicipiosAno,
   getMapbiomasSerieAnual,
   getMapbiomasSerieMensal,
@@ -50,23 +51,38 @@ export default async function Page({ searchParams }: PageProps) {
         ? Number(rawAno)
         : anoDefault;
 
-  // Para queries que precisam de um ano específico (mapa, ranking, IPA),
-  // resolvemos "all" ao último ano com dados — o "retrato mais recente"
-  // é mais útil do que agregar município × ano no mapa.
+  // IPA continua sendo o retrato do ano mais recente com dados quando "all"
+  // (é um score institucional datado, não um acumulado).
   const anoConsultas = anoAtual === "all" ? anosDisponiveis.at(-1)! : anoAtual;
 
-  const [mensal, top, ipa, municipios] = await Promise.all([
+  const [mensal, ipa] = await Promise.all([
     getMapbiomasSerieMensal(),
-    getMapbiomasTopMunicipios(anoConsultas, 20),
     getIpaRanking(anoConsultas, 15),
-    getMapbiomasMunicipiosAno(anoConsultas),
   ]);
+
+  // Mapa + ranking: em "Todos os anos" somamos por município a série inteira
+  // (coerente com os KPIs); em ano específico, o snapshot daquele ano.
+  let municipios;
+  let topRows;
+  if (anoAtual === "all") {
+    municipios = await getMapbiomasMunicipiosAgregado();
+    topRows = [...municipios]
+      .sort((a, b) => Number(b.haIrregular) - Number(a.haIrregular))
+      .slice(0, 20);
+  } else {
+    const [top, municipiosAno] = await Promise.all([
+      getMapbiomasTopMunicipios(anoConsultas, 20),
+      getMapbiomasMunicipiosAno(anoConsultas),
+    ]);
+    municipios = municipiosAno;
+    topRows = top.rows;
+  }
 
   return (
     <MapbiomasDashboardView
       serie={serie}
       mensal={mensal}
-      topMunicipios={top.rows}
+      topMunicipios={topRows}
       municipiosAtual={municipios}
       ipaRanking={ipa}
       anoAtual={anoAtual}

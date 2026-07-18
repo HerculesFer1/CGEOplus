@@ -18,16 +18,30 @@ import {
   monitExtMapbiomasMunicipio,
 } from "@/lib/db/monitoramento-externo";
 import { UPSTREAM_VERCEL } from "./constants";
-import { fetchPostgrest, fetchStaticJson } from "./upstream-client";
+import {
+  callPostgrestRpc,
+  fetchPostgrest,
+  fetchStaticJson,
+} from "./upstream-client";
 
 /* ==========================================================================
    Shapes upstream (documentam o que esperamos ler)
    ========================================================================== */
 
-interface ResumoEstatico {
-  alertYr: Record<string, { count: number; area: number; cerrado: number; caatinga: number }>;
-  classifYr: Record<string, { irregular: number; autorizado: number; autorizado_p: number; regularizado: number }>;
-  ipiYr: Record<string, number>;
+/**
+ * Linha da RPC `get_resumo_anual` — FONTE AUTORITATIVA da série anual, a mesma
+ * que a dashboard de referência usa (áreas computadas ao vivo da geometria).
+ * Substitui o antigo `resumo_estatico.json`, que estava defasado e subnotificava
+ * a área em 2-6× (ver docs/metodologia/01-mapbiomas.md).
+ */
+interface ResumoAnualRow {
+  ano: number;
+  n_alertas: number;
+  ha_total: number | string;
+  ha_irregular: number | string;
+  ha_autorizado_total: number | string;
+  ha_regularizado: number | string;
+  ipi: number | string;
 }
 
 /** Formato upstream: `{ "2025": [ha_jan, ha_fev, ..., ha_dez] }` — só área,
@@ -39,6 +53,11 @@ interface AgregadoMunicipioRow {
   ano: number;
   bioma_predominante: string | null;
   ha_irregular: number | string;
+  /** Autorizado PLENO — ASV cobre ≥ 99% do polígono. */
+  ha_autorizado: number | string;
+  /** Autorizado PARCIAL — ASV cobre só parte do polígono (o resto segue irregular). */
+  ha_autorizado_parcialmente: number | string;
+  /** Pleno + parcial. */
   ha_autorizado_total: number | string;
   ha_regularizado: number | string;
   ha_total: number | string;
@@ -70,25 +89,81 @@ function n(v: number | string | null | undefined): string {
    Parsers
    ========================================================================== */
 
-function parseAno(resumo: ResumoEstatico) {
-  const anos = Object.keys(resumo.alertYr ?? {}).map(Number).filter(Number.isFinite);
-  return anos.map((ano) => {
-    const alert = resumo.alertYr[String(ano)];
-    const classif = resumo.classifYr[String(ano)];
-    const ipi = resumo.ipiYr[String(ano)] ?? 0;
-    return {
-      ano,
-      nAlertas: alert.count,
-      areaTotalHa: n(alert.area),
-      areaIrregularHa: n(classif?.irregular ?? 0),
-      areaAutorizadoHa: n(classif?.autorizado ?? 0),
-      areaAutorizadoParcialHa: n(classif?.autorizado_p ?? 0),
-      areaRegularizadoHa: n(classif?.regularizado ?? 0),
-      cerradoHa: n(alert.cerrado),
-      caatingaHa: n(alert.caatinga),
-      ipiPct: n(ipi),
-    };
-  });
+/** Mapeia as linhas da RPC autoritativa para o shape do snapshot anual.
+ *
+ *  A RPC só expõe o autorizado **total** (funde pleno + parcial). O split
+ *  pleno/parcial existe no `agregado_municipios` (`ha_autorizado` vs
+ *  `ha_autorizado_parcialmente`), mas numa escala diferente (deduplicada por
+ *  município) da RPC (geometria bruta). Para não misturar escalas na mesma
+ *  fatia da composição, aplicamos ao total autoritativo da RPC a **proporção
+ *  de parcial** derivada do agregado municipal daquele ano — pleno + parcial
+ *  continuam somando exatamente o `ha_autorizado_total` da RPC.
+ *
+ *  O split por bioma também vem do agregado municipal (a RPC não expõe bioma). */
+function parseAnoFromRpc(
+  rows: ResumoAnualRow[],
+  biomaPorAno: Map<number, { cerrado: number; caatinga: number }>,
+  splitPorAno: Map<number, { pleno: number; parcial: number; total: number }>,
+) {
+  return rows
+    .filter((r) => Number.isFinite(Number(r.ano)))
+    .map((r) => {
+      const ano = Number(r.ano);
+      const bioma = biomaPorAno.get(ano) ?? { cerrado: 0, caatinga: 0 };
+      const split = splitPorAno.get(ano) ?? { pleno: 0, parcial: 0, total: 0 };
+      const autorizadoTotal = Number(r.ha_autorizado_total) || 0;
+      // Proporção de "parcial" dentro do autorizado, medida no agregado
+      // municipal; aplicada ao total autoritativo da RPC.
+      const fracParcial = split.total > 0 ? split.parcial / split.total : 0;
+      const parcial = autorizadoTotal * fracParcial;
+      const pleno = autorizadoTotal - parcial;
+      return {
+        ano,
+        nAlertas: r.n_alertas ?? 0,
+        areaTotalHa: n(r.ha_total),
+        areaIrregularHa: n(r.ha_irregular),
+        areaAutorizadoHa: n(pleno),
+        areaAutorizadoParcialHa: n(parcial),
+        areaRegularizadoHa: n(r.ha_regularizado),
+        cerradoHa: n(bioma.cerrado),
+        caatingaHa: n(bioma.caatinga),
+        ipiPct: n(r.ipi),
+      };
+    });
+}
+
+/** Soma pleno/parcial/total do autorizado por ano a partir do agregado
+ *  municipal — fonte do split que a RPC anual não expõe. */
+function derivarAutorizadoSplitPorAno(
+  rows: AgregadoMunicipioRow[],
+): Map<number, { pleno: number; parcial: number; total: number }> {
+  const map = new Map<number, { pleno: number; parcial: number; total: number }>();
+  for (const r of rows) {
+    const acc = map.get(r.ano) ?? { pleno: 0, parcial: 0, total: 0 };
+    acc.pleno += Number(r.ha_autorizado) || 0;
+    acc.parcial += Number(r.ha_autorizado_parcialmente) || 0;
+    acc.total += Number(r.ha_autorizado_total) || 0;
+    map.set(r.ano, acc);
+  }
+  return map;
+}
+
+/** Deriva a área por bioma (Cerrado/Caatinga) somando o agregado municipal por
+ *  `bioma_predominante`. Dado geoespacial vivo, usado porque a RPC anual não
+ *  expõe o split de bioma. */
+function derivarBiomaPorAno(
+  rows: AgregadoMunicipioRow[],
+): Map<number, { cerrado: number; caatinga: number }> {
+  const map = new Map<number, { cerrado: number; caatinga: number }>();
+  for (const r of rows) {
+    const bioma = (r.bioma_predominante ?? "").toLowerCase();
+    const acc = map.get(r.ano) ?? { cerrado: 0, caatinga: 0 };
+    const ha = Number(r.ha_total) || 0;
+    if (bioma.includes("cerrado")) acc.cerrado += ha;
+    else if (bioma.includes("caatinga")) acc.caatinga += ha;
+    map.set(r.ano, acc);
+  }
+  return map;
 }
 
 /** Upstream expõe só área mensal — count fica 0 no snapshot. */
@@ -129,13 +204,13 @@ function parseMunicipios(rows: AgregadoMunicipioRow[]) {
    ========================================================================== */
 
 export async function syncMapbiomas(): Promise<SyncResult> {
-  const [resumo, monthly, municipiosUpstream] = await Promise.all([
-    fetchStaticJson<ResumoEstatico>("resumo_estatico"),
+  const [monthly, municipiosUpstream] = await Promise.all([
     fetchStaticJson<MonthlyAlertas>("monthly_alertas"),
     fetchPostgrest<AgregadoMunicipioRow>("agregado_municipios", {
       // Nunca puxamos matopiba: será tratado como módulo próprio depois.
       select:
-        "municipio,ano,bioma_predominante,ha_irregular,ha_autorizado_total," +
+        "municipio,ano,bioma_predominante,ha_irregular,ha_autorizado," +
+        "ha_autorizado_parcialmente,ha_autorizado_total," +
         "ha_regularizado,ha_total,pct_irregular,num_alertas," +
         "vpressao_dominante_ptbr,reincidente,anos_com_alerta_irregular," +
         "defasagem_media_dias",
@@ -143,31 +218,55 @@ export async function syncMapbiomas(): Promise<SyncResult> {
     }),
   ]);
 
-  const anos = parseAno(resumo);
+  // Série anual AUTORITATIVA: RPC ao vivo `get_resumo_anual` (mesma da dashboard
+  // de referência; áreas computadas da geometria). A RPC é pesada e pode dar
+  // statement timeout em cold start → retry + timeout folgado. Se falhar de vez,
+  // caímos para a derivação municipal (dado vivo, internamente consistente) —
+  // NUNCA para o `resumo_estatico.json`, que estava defasado.
+  let resumoAnual: ResumoAnualRow[] = [];
+  let fonteAnual = "get_resumo_anual (rpc)";
+  try {
+    resumoAnual = await callPostgrestRpc<ResumoAnualRow[]>(
+      "get_resumo_anual",
+      {},
+      { timeoutMs: 45_000, retries: 4 },
+    );
+  } catch (err) {
+    console.warn(
+      "[mapbiomas-sync] get_resumo_anual indisponível — derivando a série anual do agregado municipal:",
+      err instanceof Error ? err.message : err,
+    );
+    fonteAnual = "agregado_municipios (fallback)";
+  }
+
+  const biomaPorAno = derivarBiomaPorAno(municipiosUpstream);
+  const splitPorAno = derivarAutorizadoSplitPorAno(municipiosUpstream);
+  const anos = parseAnoFromRpc(resumoAnual, biomaPorAno, splitPorAno);
   const meses = parseMensal(monthly);
   const municipios = parseMunicipios(municipiosUpstream);
 
-  // Fallback: se `agregado_municipios` tem anos que ainda não estão em
-  // `resumo_estatico.json` (o upstream demora mais para publicar o resumo),
-  // derivamos a linha anual somando os municípios. Isso mantém o KPI anual
-  // do CGEO+ em sincronia com o dashboard upstream, que também soma no
-  // client. Ex.: em 2026 os municípios chegam antes do resumo, e sem esse
-  // fallback o dashboard só listaria até 2025.
-  const anosNoResumo = new Set(anos.map((a) => a.ano));
+  // Salvaguarda de robustez: anos presentes no agregado municipal mas ausentes
+  // da RPC — ou TODA a série, se a RPC falhou — são derivados somando os
+  // municípios. Garante que a atualização nunca deixe um ano de fora nem quebre.
+  const anosNaRpc = new Set(anos.map((a) => a.ano));
   const anosFaltando = new Map<number, AgregadoMunicipioRow[]>();
   for (const r of municipiosUpstream) {
-    if (anosNoResumo.has(r.ano)) continue;
+    if (anosNaRpc.has(r.ano)) continue;
     const arr = anosFaltando.get(r.ano) ?? [];
     arr.push(r);
     anosFaltando.set(r.ano, arr);
   }
   for (const [ano, rows] of anosFaltando) {
+    const bioma = biomaPorAno.get(ano) ?? { cerrado: 0, caatinga: 0 };
     const agg = rows.reduce(
       (a, r) => {
         a.nAlertas += r.num_alertas;
         a.areaTotalHa += Number(r.ha_total) || 0;
         a.areaIrregularHa += Number(r.ha_irregular) || 0;
-        a.areaAutorizadoHa += Number(r.ha_autorizado_total) || 0;
+        // Este path já está na escala municipal, então usamos o split exato
+        // (pleno vs parcial) direto — sem proporção.
+        a.areaAutorizadoHa += Number(r.ha_autorizado) || 0;
+        a.areaAutorizadoParcialHa += Number(r.ha_autorizado_parcialmente) || 0;
         a.areaRegularizadoHa += Number(r.ha_regularizado) || 0;
         return a;
       },
@@ -176,6 +275,7 @@ export async function syncMapbiomas(): Promise<SyncResult> {
         areaTotalHa: 0,
         areaIrregularHa: 0,
         areaAutorizadoHa: 0,
+        areaAutorizadoParcialHa: 0,
         areaRegularizadoHa: 0,
       },
     );
@@ -185,10 +285,10 @@ export async function syncMapbiomas(): Promise<SyncResult> {
       areaTotalHa: n(agg.areaTotalHa),
       areaIrregularHa: n(agg.areaIrregularHa),
       areaAutorizadoHa: n(agg.areaAutorizadoHa),
-      areaAutorizadoParcialHa: "0",
+      areaAutorizadoParcialHa: n(agg.areaAutorizadoParcialHa),
       areaRegularizadoHa: n(agg.areaRegularizadoHa),
-      cerradoHa: "0",
-      caatingaHa: "0",
+      cerradoHa: n(bioma.cerrado),
+      caatingaHa: n(bioma.caatinga),
       ipiPct:
         agg.areaTotalHa > 0
           ? ((agg.areaIrregularHa / agg.areaTotalHa) * 100).toFixed(2)
@@ -240,7 +340,7 @@ export async function syncMapbiomas(): Promise<SyncResult> {
       meses: meses.length,
       municipios: municipios.length,
     },
-    fonteUrl: `${UPSTREAM_VERCEL}/data (+ upstream Supabase)`,
+    fonteUrl: `${fonteAnual} + agregado_municipios + ${UPSTREAM_VERCEL}/data/monthly_alertas.json`,
   };
 }
 

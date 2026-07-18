@@ -95,24 +95,53 @@ export async function fetchPostgrest<T>(
   return allRows;
 }
 
-/** POST em `rpc/<name>`. `params` = body JSON. */
+interface RpcOpts {
+  /** Timeout por tentativa (default 10s). RPCs pesadas (ex.: `get_resumo_anual`,
+   *  que agrega geometrias ao vivo) precisam de mais folga. */
+  timeoutMs?: number;
+  /** Tentativas totais (default 1). Retenta em timeout/5xx — a RPC pesada
+   *  falha por `statement timeout` em cold start e sucede logo em seguida. */
+  retries?: number;
+}
+
+/** POST em `rpc/<name>`. `params` = body JSON. Com retry/backoff opcional para
+ *  RPCs pesadas e instáveis (evita que um timeout transitório perca a janela do
+ *  cron mensal). */
 export async function callPostgrestRpc<T>(
   name: string,
   params: Record<string, unknown> = {},
+  opts: RpcOpts = {},
 ): Promise<T> {
   const url = `${UPSTREAM_SUPABASE_URL}/rpc/${name}`;
-  const res = await fetch(url, {
-    method: "POST",
-    signal: timeoutSignal(TIMEOUT_MS),
-    cache: "no-store",
-    headers: {
-      apikey: UPSTREAM_SUPABASE_ANON,
-      Authorization: `Bearer ${UPSTREAM_SUPABASE_ANON}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(params),
-  });
-  if (!res.ok) throw new Error(`POST ${url} → HTTP ${res.status}`);
-  return (await res.json()) as T;
+  const timeout = opts.timeoutMs ?? TIMEOUT_MS;
+  const tentativas = Math.max(1, opts.retries ?? 1);
+
+  let ultimoErro: unknown;
+  for (let i = 0; i < tentativas; i++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        signal: timeoutSignal(timeout),
+        cache: "no-store",
+        headers: {
+          apikey: UPSTREAM_SUPABASE_ANON,
+          Authorization: `Bearer ${UPSTREAM_SUPABASE_ANON}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(params),
+      });
+      if (!res.ok) throw new Error(`POST ${url} → HTTP ${res.status}`);
+      return (await res.json()) as T;
+    } catch (err) {
+      ultimoErro = err;
+      if (i < tentativas - 1) {
+        // backoff linear curto (1s, 2s, …) — dá tempo do plano/cache aquecer.
+        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+      }
+    }
+  }
+  throw ultimoErro instanceof Error
+    ? ultimoErro
+    : new Error(`POST ${url} falhou após ${tentativas} tentativas`);
 }

@@ -112,6 +112,46 @@ export async function getMapbiomasMunicipiosAno(ano: number) {
     .where(eq(monitExtMapbiomasMunicipio.ano, ano));
 }
 
+/**
+ * Snapshot agregado por município somando TODOS os anos — alimenta o
+ * choropleth e o ranking no modo "Todos os anos". Antes o modo agregado
+ * resolvia para o último ano, deixando o mapa em desacordo com os KPIs (que
+ * somam a série inteira). Aqui as áreas são somadas por município; o IPI/pct
+ * é recalculado sobre os totais e os campos derivados (bioma/vetor dominante,
+ * reincidência) são consolidados no período.
+ */
+export async function getMapbiomasMunicipiosAgregado(): Promise<
+  MunicipioMapbiomas[]
+> {
+  const m = monitExtMapbiomasMunicipio;
+  const rows = await db
+    .select({
+      municipio: m.municipio,
+      ano: sql<number>`MAX(${m.ano})`,
+      bioma: sql<string | null>`MODE() WITHIN GROUP (ORDER BY ${m.bioma})`,
+      haTotal: sql<string>`SUM(${m.haTotal})`,
+      haIrregular: sql<string>`SUM(${m.haIrregular})`,
+      haAutorizadoTotal: sql<string>`SUM(${m.haAutorizadoTotal})`,
+      haRegularizado: sql<string>`SUM(${m.haRegularizado})`,
+      pctIrregular: sql<string>`CASE WHEN SUM(${m.haTotal}) > 0 THEN ROUND(SUM(${m.haIrregular}) / SUM(${m.haTotal}) * 100, 2) ELSE 0 END`,
+      numAlertas: sql<number>`SUM(${m.numAlertas})`,
+      vpressaoDominante: sql<
+        string | null
+      >`MODE() WITHIN GROUP (ORDER BY ${m.vpressaoDominante})`,
+      reincidente: sql<
+        boolean
+      >`COUNT(DISTINCT ${m.ano}) FILTER (WHERE ${m.haIrregular} > 0) >= 2`,
+      anosComAlertaIrregular: sql<
+        number[]
+      >`COALESCE(ARRAY_AGG(DISTINCT ${m.ano}) FILTER (WHERE ${m.haIrregular} > 0), ARRAY[]::smallint[])`,
+      defasagemMediaDias: sql<string | null>`AVG(${m.defasagemMediaDias})`,
+      atualizadoEm: sql<Date>`MAX(${m.atualizadoEm})`,
+    })
+    .from(m)
+    .groupBy(m.municipio);
+  return rows as MunicipioMapbiomas[];
+}
+
 export type MunicipioMapbiomas =
   typeof monitExtMapbiomasMunicipio.$inferSelect;
 
@@ -183,6 +223,34 @@ export async function getQueimadasMunicipiosAno(ano: number) {
     .select()
     .from(monitExtQueimadasMunicipioAno)
     .where(eq(monitExtQueimadasMunicipioAno.ano, ano));
+}
+
+/**
+ * Agregado por município somando TODOS os anos — alimenta o choropleth e o
+ * ranking no modo "Todos os anos". A área queimada é somada; a classe AHP
+ * máxima é o pico do período; o % em área prioritária vira média ponderada
+ * pela área; `emAlerta` é verdadeiro se o município disparou o critério em
+ * qualquer ano.
+ */
+export async function getQueimadasMunicipiosAgregado() {
+  const q = monitExtQueimadasMunicipioAno;
+  return db
+    .select({
+      municipioCod: q.municipioCod,
+      municipioNome: sql<string>`MAX(${q.municipioNome})`,
+      ano: sql<number>`MAX(${q.ano})`,
+      areaQueimadaTotalHa: sql<string>`SUM(${q.areaQueimadaTotalHa})`,
+      nCicatrizesTotal: sql<number>`SUM(${q.nCicatrizesTotal})`,
+      classeMaxQueimada: sql<number | null>`MAX(${q.classeMaxQueimada})`,
+      pctAreaPrioritaria: sql<
+        string | null
+      >`CASE WHEN SUM(${q.areaQueimadaTotalHa}) > 0 THEN ROUND(SUM(${q.areaQueimadaTotalHa} * COALESCE(${q.pctAreaPrioritaria}, 0)) / SUM(${q.areaQueimadaTotalHa}), 2) ELSE NULL END`,
+      mesPico: sql<number | null>`MODE() WITHIN GROUP (ORDER BY ${q.mesPico})`,
+      emAlerta: sql<boolean | null>`BOOL_OR(${q.emAlerta})`,
+      atualizadoEm: sql<Date>`MAX(${q.atualizadoEm})`,
+    })
+    .from(q)
+    .groupBy(q.municipioCod);
 }
 
 /** Sazonalidade mensal por classe AHP — para o gráfico "Por Classe". */

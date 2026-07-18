@@ -21,6 +21,7 @@ import {
   Sprout,
   Satellite,
   Flame,
+  BookOpen,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -77,6 +78,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/monitoramento/mapbiomas", label: "Alertas MapBiomas", icon: Sprout },
       { href: "/monitoramento/prodes", label: "PRODES Cerrado", icon: Satellite },
       { href: "/monitoramento/queimadas", label: "Queimadas INPE", icon: Flame },
+      { href: "/docs", label: "Documentação", icon: BookOpen },
     ],
   },
 ];

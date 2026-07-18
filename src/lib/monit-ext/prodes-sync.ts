@@ -81,12 +81,18 @@ export async function syncProdes(): Promise<SyncResult> {
     };
   });
 
+  // topMun não tem ano — assume o ano mais recente (max dos ciclos). É
+  // intencional: o storytelling "top municípios PRODES" mostra acumulado até o
+  // último ciclo. Guarda contra `Math.max()` = -Infinity quando `ciclos` vier
+  // vazio (upstream sem ciclos, mas com topMun) — evita SQL com `-Infinity`.
+  const anoTopMun =
+    ciclos.length > 0
+      ? Math.max(...ciclos.map((c) => c.anoProdesRef))
+      : new Date().getFullYear();
+
   const municipios = (resumo.prodesExtra.topMun ?? []).map((m) => ({
     municipio: m.mun,
-    // topMun não tem ano — assume o ano mais recente (max dos ciclos).
-    // Isso é intencional: o storytelling "top municípios PRODES" mostra
-    // acumulado até o último ciclo.
-    ano: Math.max(...ciclos.map((c) => c.anoProdesRef)),
+    ano: anoTopMun,
     concordanteHa: n(m.conc),
     totalHa: n(m.total),
     pctConcordancia: n(m.pct),

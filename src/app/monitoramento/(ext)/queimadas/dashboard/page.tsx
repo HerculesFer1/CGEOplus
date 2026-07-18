@@ -3,6 +3,7 @@ import { Flame } from "lucide-react";
 import { ANO_MIN, TEMA_COR, anoRecenteCompleto } from "@/lib/monit-ext/constants";
 import { getIpaRanking } from "@/lib/monit-ext/ipa";
 import {
+  getQueimadasMunicipiosAgregado,
   getQueimadasMunicipiosAno,
   getQueimadasMunicipiosEmAlerta,
   getQueimadasRecorrentes,
@@ -51,19 +52,35 @@ export default async function Page({ searchParams }: PageProps) {
         ? Number(rawAno)
         : anoDefault;
 
-  // Queries que precisam de um ano específico usam o retrato mais recente
-  // quando "all" — evita agregar município × ano no mapa, o que seria
-  // ambíguo (é a intensidade por município ao longo dos anos?).
+  // Banner de alerta, sazonalidade por classe e IPA seguem sendo o retrato do
+  // ano mais recente quando "all" (são leituras datadas). Já o mapa + ranking
+  // municipal passam a somar a série inteira (ver abaixo), pra ficarem
+  // coerentes com o KPI "Área queimada" que também agrega.
   const anoConsultas = anoAtual === "all" ? anosDisponiveis.at(-1)! : anoAtual;
 
-  const [top, emAlerta, todos, sazonalidade, recorrentes, ipa] = await Promise.all([
-    getQueimadasTopMunicipios(anoConsultas, 20),
+  const [emAlerta, sazonalidade, recorrentes, ipa] = await Promise.all([
     getQueimadasMunicipiosEmAlerta(anoConsultas),
-    getQueimadasMunicipiosAno(anoConsultas),
     getQueimadasSazonalidadePorClasse(anoConsultas),
     getQueimadasRecorrentes(),
     getIpaRanking(anoConsultas, 15),
   ]);
+
+  let todos;
+  let top;
+  if (anoAtual === "all") {
+    todos = await getQueimadasMunicipiosAgregado();
+    top = [...todos]
+      .sort(
+        (a, b) =>
+          Number(b.areaQueimadaTotalHa) - Number(a.areaQueimadaTotalHa),
+      )
+      .slice(0, 20);
+  } else {
+    [top, todos] = await Promise.all([
+      getQueimadasTopMunicipios(anoConsultas, 20),
+      getQueimadasMunicipiosAno(anoConsultas),
+    ]);
+  }
 
   return (
     <QueimadasDashboardView

@@ -158,7 +158,7 @@ export function MapbiomasDashboardView({
           corTema={COR}
         >
           <SlideKpiRow atual={atual} anterior={anterior} />
-          <ClasseComposicao serie={serie} ano={anoConcreto} />
+          <ClasseComposicao atual={atual} labelAno={labelAno} />
           <NotaContexto>
             <strong>Composição fundiária</strong> — Irregular = residual sem
             ASV nem DERADSA. Autorizado Pleno = ASV cobre ≥ 99% do polígono.
@@ -192,7 +192,7 @@ export function MapbiomasDashboardView({
           corTema={COR}
           fluid
         >
-          <MapaMunicipalMapbiomas municipiosAtual={municipiosAtual} anoAtual={anoConcreto} />
+          <MapaMunicipalMapbiomas municipiosAtual={municipiosAtual} labelAno={labelAno} />
           <NotaContexto>
             Escala log de área irregular — municípios sem alerta ficam em cinza
             claro. Faixas: 1-100 · 100-500 · 500-2k · 2k-10k · &gt;10k ha.
@@ -286,10 +286,10 @@ function agregarSerieMapbiomas(serie: SerieAnualRow[]): SerieAnualRow {
 
 function MapaMunicipalMapbiomas({
   municipiosAtual,
-  anoAtual,
+  labelAno,
 }: {
   municipiosAtual: MunicipioMapbiomas[];
-  anoAtual: number;
+  labelAno: string;
 }) {
   const [selecionado, setSelecionado] = useState<MunicipioMapbiomas | null>(null);
   return (
@@ -314,7 +314,7 @@ function MapaMunicipalMapbiomas({
         <div className="pointer-events-auto absolute right-4 top-4 z-20 w-64 max-w-[calc(100%-2rem)] rounded-2xl border bg-[var(--elevated)]/95 p-4 shadow-[var(--shadow-md)] backdrop-blur-md">
           <MapbiomasMunicipioCard
             municipio={selecionado}
-            anoAtual={anoAtual}
+            labelAno={labelAno}
             onClose={() => setSelecionado(null)}
           />
         </div>
@@ -325,11 +325,11 @@ function MapaMunicipalMapbiomas({
 
 function MapbiomasMunicipioCard({
   municipio,
-  anoAtual,
+  labelAno,
   onClose,
 }: {
   municipio: MunicipioMapbiomas;
-  anoAtual: number;
+  labelAno: string;
   onClose: () => void;
 }) {
   const pct = Number(municipio.pctIrregular ?? 0);
@@ -338,7 +338,7 @@ function MapbiomasMunicipioCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
-            Município · {anoAtual}
+            Município · {labelAno}
           </p>
           <h4 className="truncate text-base font-semibold text-[var(--text)]" title={municipio.municipio}>
             {municipio.municipio}
@@ -543,8 +543,17 @@ function SlideKpiRow({ atual, anterior }: { atual: SerieAnualRow; anterior: Seri
   );
 }
 
-function ClasseComposicao({ serie, ano }: { serie: SerieAnualRow[]; ano: number }) {
-  const atual = serie.find((s) => s.ano === ano) ?? serie[serie.length - 1];
+function ClasseComposicao({
+  atual,
+  labelAno,
+}: {
+  atual: SerieAnualRow;
+  labelAno: string;
+}) {
+  // `atual` já vem resolvido pelo pai: agregado da série inteira no modo
+  // "Todos os anos" (incluindo Autorizado parcial somado ano a ano) ou a
+  // linha do ano selecionado. Antes este bloco refazia `serie.find(ano)` e
+  // caía no último ano — no modo agregado isso zerava o Autorizado parcial.
   // Mantém as 4 categorias mesmo quando zero — assim vemos "— sem DERADSA"
   // para anos 2022-2023 sem inventar categoria inexistente.
   const data = [
@@ -560,7 +569,7 @@ function ClasseComposicao({ serie, ano }: { serie: SerieAnualRow[]; ano: number 
     <motion.div variants={fadeSlideUp} className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
       <div>
         <h4 className="text-sm font-semibold text-[var(--text)]">
-          Composição fundiária em {atual.ano}
+          Composição fundiária — {labelAno}
         </h4>
         <p className="mt-1 text-xs text-[var(--text-muted)]">
           Distribuição da área desmatada por classe de instrumento. A precedência é
