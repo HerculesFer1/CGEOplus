@@ -18,7 +18,9 @@ import {
 
 import { AnoDropdown } from "@/components/monit-ext/ano-dropdown";
 import { AssinaturaAmbientalCard } from "@/components/monit-ext/assinatura-ambiental";
+import { Bento, BentoCell } from "@/components/monit-ext/bento";
 import { MapaChoropleth } from "@/components/monit-ext/mapa-choropleth";
+import { RankingCompacto } from "@/components/monit-ext/ranking-compacto";
 import { Slide, SlideDeck } from "@/components/monit-ext/slide-deck";
 import { fadeSlideUp, staggerContainer } from "@/lib/design/motion";
 import { ANO_MIN, TEMA_COR } from "@/lib/monit-ext/constants";
@@ -275,16 +277,35 @@ export function ProdesDashboardView({
           corTema={COR}
           fluid
         >
-          <MapaMunicipalProdes
-            topMunicipios={topMunicipiosAno.length > 0 ? topMunicipiosAno : topMunicipios}
-            anoAtual={anoConcreto}
-          />
+          <Bento className="lg:grid-cols-[1.55fr_1fr] lg:items-start">
+            <BentoCell>
+              <MapaMunicipalProdes
+                topMunicipios={topMunicipiosAno.length > 0 ? topMunicipiosAno : topMunicipios}
+                anoAtual={anoConcreto}
+              />
+            </BentoCell>
+            <BentoCell>
+              <RankingCompacto
+                titulo="Top municípios validados"
+                subtitulo={`Maior área com dupla confirmação em ${labelAno}`}
+                cor={COR}
+                sufixoValor="ha"
+                corPct={(p) => (p >= 85 ? "#10B981" : p >= 65 ? "#F59E0B" : "#EF4444")}
+                itens={[...(topMunicipiosAno.length > 0 ? topMunicipiosAno : topMunicipios)]
+                  .sort((a, b) => Number(b.concordanteHa) - Number(a.concordanteHa))
+                  .map((m) => ({
+                    nome: m.municipio,
+                    valor: Number(m.concordanteHa),
+                    pct: Number(m.pctConcordancia ?? 0),
+                  }))}
+              />
+            </BentoCell>
+          </Bento>
           <NotaContexto>
             Escala log de área validada — municípios sem alerta ficam em
             cinza claro. A validação cruzada mostra concentração espacial
             dos alertas de dupla fonte.
           </NotaContexto>
-          <RankingMunicipal top={topMunicipiosAno.length > 0 ? topMunicipiosAno : topMunicipios.slice(0, 20)} />
         </Slide>
 
         {/* SLIDE 6 — COMPARATIVO ANO A ANO DESDE 2022 */}
@@ -375,7 +396,7 @@ function MapaMunicipalProdes({
 }) {
   const [selecionado, setSelecionado] = useState<TopMun | null>(null);
   return (
-    <motion.div variants={fadeSlideUp} className="relative">
+    <div className="relative">
       <MapaChoropleth
         dados={topMunicipios.map((m) => ({
           municipio: m.municipio,
@@ -401,7 +422,7 @@ function MapaMunicipalProdes({
           />
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
 
@@ -705,51 +726,6 @@ function CoberturaChart({ cobertura }: { cobertura: Cobertura[] }) {
         <p className="mt-3 leading-relaxed">
           Faixa <strong>90–100%</strong>: dupla confirmação forte. Prioritário para autuação.
         </p>
-      </div>
-    </motion.div>
-  );
-}
-
-function RankingMunicipal({ top }: { top: TopMun[] }) {
-  return (
-    <motion.div variants={fadeSlideUp}>
-      <div className="overflow-hidden rounded-2xl border border-[var(--border)]">
-        <table className="w-full text-sm">
-          <thead className="bg-[var(--surface)]">
-            <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
-              <th className="px-4 py-2.5">#</th>
-              <th className="px-4 py-2.5">Município</th>
-              <th className="px-4 py-2.5 text-right">Área validada (ha)</th>
-              <th className="px-4 py-2.5 text-right">Total detectado (ha)</th>
-              <th className="px-4 py-2.5 text-right">Concordância</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--border)]">
-            {top.map((m, i) => {
-              const pct = Number(m.pctConcordancia ?? 0);
-              return (
-                <tr key={m.municipio} className="text-[13px] hover:bg-[var(--surface)]">
-                  <td className="px-4 py-2 text-[var(--text-subtle)] tabular-nums">
-                    {String(i + 1).padStart(2, "0")}
-                  </td>
-                  <td className="px-4 py-2 font-medium text-[var(--text)]">{m.municipio}</td>
-                  <td className="px-4 py-2 text-right tabular-nums text-[var(--text)]">
-                    {formatNumber(Math.round(Number(m.concordanteHa)))}
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums text-[var(--text-muted)]">
-                    {formatNumber(Math.round(Number(m.totalHa)))}
-                  </td>
-                  <td
-                    className="px-4 py-2 text-right tabular-nums font-semibold"
-                    style={{ color: pct >= 85 ? "#10B981" : pct >= 65 ? "#F59E0B" : "#EF4444" }}
-                  >
-                    {pct.toFixed(0)}%
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
       </div>
     </motion.div>
   );
