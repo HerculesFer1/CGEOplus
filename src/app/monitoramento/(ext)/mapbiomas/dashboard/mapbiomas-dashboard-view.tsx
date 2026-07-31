@@ -124,32 +124,32 @@ export function MapbiomasDashboardView({
     anoAtual === "all" ? serie[serie.length - 1]?.ano ?? new Date().getFullYear() : anoAtual;
 
   return (
-    <div className="pb-16">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
-            Dashboard MapBiomas · modo apresentação
-          </div>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-            Alertas <span style={{ color: COR }}>MapBiomas</span>{" "}
-            <span className="text-[var(--text-muted)]">— {labelAno}</span>
-          </h1>
+    <SlideDeck
+      backHref="/monitoramento/mapbiomas"
+      toc={TOC}
+      corTema={COR}
+      tituloModulo="MapBiomas"
+      title={
+        <>
+          Alertas <span style={{ color: COR }}>MapBiomas</span>{" "}
+          <span className="text-[var(--text-muted)]">— {labelAno}</span>
+        </>
+      }
+      headerControls={
+        <>
           {anoParcial && (
-            <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-500">
+            <span
+              className="hidden items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-500 sm:inline-flex"
+              title="Ano corrente — dados parciais até o próximo sync mensal"
+            >
               <AlertTriangle className="h-3 w-3" strokeWidth={2} />
-              Ano corrente — dados parciais até o próximo sync mensal
-            </p>
+              Parcial
+            </span>
           )}
-        </div>
-        <AnoDropdown anos={anosDisponiveis} anoAtual={anoAtual} corTema={COR} />
-      </header>
-
-      <SlideDeck
-        backHref="/monitoramento/mapbiomas"
-        toc={TOC}
-        corTema={COR}
-        tituloModulo="MapBiomas"
-      >
+          <AnoDropdown anos={anosDisponiveis} anoAtual={anoAtual} corTema={COR} />
+        </>
+      }
+    >
         {/* SLIDE 1 — VISÃO EXECUTIVA */}
         <Slide
           id="visao"
@@ -272,8 +272,7 @@ export function MapbiomasDashboardView({
           <IpaRanking ipa={ipaRanking} anoAtual={anoConcreto} />
           <AssinaturaAmbientalCard corTema={COR} municipios={topMunicipios.slice(0, 8).map((m) => m.municipio)} />
         </Slide>
-      </SlideDeck>
-    </div>
+    </SlideDeck>
   );
 }
 

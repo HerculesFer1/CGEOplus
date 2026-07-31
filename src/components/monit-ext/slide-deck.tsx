@@ -1,24 +1,42 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronUp,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { cn } from "@/lib/utils";
 import { fadeSlideUp, spring, staggerContainer } from "@/lib/design/motion";
 
 /**
- * SlideDeck — infraestrutura de storytelling em slides para os dashboards
- * do Monitoramento Externo. Cada `Slide` é uma tela verticalmente snappada
- * dentro do container, com entrada em stagger controlada pelo Framer Motion.
+ * SlideDeck — modo apresentação em tela cheia para os dashboards do
+ * Monitoramento Externo. Abrir o dashboard já ocupa toda a viewport
+ * (`fixed inset-0`), sem o shell do app nem margens laterais: cada `Slide`
+ * é uma tela que "encaixa" via CSS scroll-snap (1 slide por tela), com um
+ * rail lateral retrátil (ícones ↔ rótulos) e navegação por teclado.
  *
  * Uso:
- *   <SlideDeck backHref="/monitoramento/mapbiomas">
- *     <Slide id="visao" title="Visão executiva" corTema="#F59E0B" total={5} index={1}>
- *       ...
- *     </Slide>
- *     <Slide id="temporal" ...>...</Slide>
+ *   <SlideDeck
+ *     backHref="/monitoramento/mapbiomas"
+ *     toc={TOC} corTema="#F59E0B" tituloModulo="MapBiomas"
+ *     title={<>Alertas MapBiomas — 2025</>}
+ *     headerControls={<AnoDropdown … />}
+ *   >
+ *     <Slide id="visao" title="Visão executiva" corTema="#F59E0B" total={6} index={1}>…</Slide>
  *   </SlideDeck>
  */
 
@@ -35,18 +53,43 @@ interface SlideDeckProps {
   toc: Array<{ id: string; label: string }>;
   corTema: string;
   tituloModulo: string;
+  /** Título grande da apresentação (ex.: "Alertas MapBiomas — 2025"). */
+  title?: React.ReactNode;
+  /** Controles à direita da barra superior (ex.: seletor de ano). */
+  headerControls?: React.ReactNode;
 }
 
-export function SlideDeck({ children, backHref, toc, corTema, tituloModulo }: SlideDeckProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+export function SlideDeck({
+  children,
+  backHref,
+  toc,
+  corTema,
+  tituloModulo,
+  title,
+  headerControls,
+}: SlideDeckProps) {
+  const router = useRouter();
+  const scrollRef = useRef<HTMLDivElement>(null);
   const slides = useRef(new Map<string, HTMLElement>());
   const [activeId, setActiveId] = useState<string | null>(toc[0]?.id ?? null);
+  const [railOpen, setRailOpen] = useState(true);
 
   const register = (id: string, ref: HTMLElement) => {
     slides.current.set(id, ref);
   };
 
+  // Rail começa recolhido em telas estreitas (mais espaço para o conteúdo).
   useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setRailOpen(false);
+    }
+  }, []);
+
+  // Slide ativo = o mais visível dentro do container de scroll (não a janela,
+  // porque o scroll acontece dentro do overlay `fixed`).
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
     const observer = new IntersectionObserver(
       (entries) => {
         const visible = entries
@@ -57,7 +100,7 @@ export function SlideDeck({ children, backHref, toc, corTema, tituloModulo }: Sl
           if (id) setActiveId(id);
         }
       },
-      { threshold: [0.4, 0.6, 0.8], rootMargin: "-10% 0px" },
+      { root, threshold: [0.35, 0.55, 0.75] },
     );
     for (const [, el] of slides.current) observer.observe(el);
     return () => observer.disconnect();
@@ -71,64 +114,140 @@ export function SlideDeck({ children, backHref, toc, corTema, tituloModulo }: Sl
   const prev = toc[activeIdx - 1];
   const next = toc[activeIdx + 1];
 
+  // Teclado: ↑/↓ e PageUp/PageDown navegam entre slides; Esc sai.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.key === "ArrowDown" || e.key === "PageDown") && next) {
+        e.preventDefault();
+        goTo(next.id);
+      } else if ((e.key === "ArrowUp" || e.key === "PageUp") && prev) {
+        e.preventDefault();
+        goTo(prev.id);
+      } else if (e.key === "Escape") {
+        router.push(backHref);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIdx, next?.id, prev?.id, backHref]);
+
   return (
     <DeckContext.Provider value={{ register, activeId }}>
-      <div className="relative flex gap-6">
-        {/* Rail lateral — TOC compacta com dot indicator */}
-        <aside className="sticky top-24 hidden h-fit shrink-0 space-y-0.5 lg:block">
+      <div className="fixed inset-0 z-50 flex flex-col bg-[var(--bg)] text-[var(--text)]">
+        {/* Barra superior — sair · módulo · título · controles */}
+        <header className="flex shrink-0 items-center gap-3 border-b border-[var(--border)] px-3 py-2.5 md:px-5">
           <Link
             href={backHref}
-            className="mb-2 inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text)]"
+            className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
           >
-            <ChevronLeft className="h-3 w-3" strokeWidth={2} /> Aparato geral
+            <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2} />
+            <span className="hidden sm:inline">Aparato geral</span>
           </Link>
-          <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
-            {tituloModulo}
-          </p>
-          {toc.map((t, i) => (
-            <button
-              key={t.id}
-              onClick={() => goTo(t.id)}
-              className={cn(
-                "group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] transition-colors",
-                activeId === t.id
-                  ? "text-[var(--text)]"
-                  : "text-[var(--text-muted)] hover:text-[var(--text)]",
-              )}
+
+          <div className="ml-1 flex min-w-0 flex-col justify-center">
+            <span
+              className="text-[9px] font-semibold uppercase tracking-[0.16em]"
+              style={{ color: corTema }}
             >
-              <span
-                className={cn(
-                  "h-1.5 w-1.5 shrink-0 rounded-full transition-all",
-                  activeId === t.id ? "w-3" : "bg-[var(--border)]",
-                )}
-                style={activeId === t.id ? { backgroundColor: corTema } : undefined}
-              />
-              <span className="truncate">
-                <span className="text-[10px] tabular-nums text-[var(--text-subtle)]">
-                  {String(i + 1).padStart(2, "0")}
-                </span>{" "}
-                {t.label}
-              </span>
+              {tituloModulo}
+            </span>
+            {title && (
+              <h1 className="truncate text-sm font-semibold leading-tight tracking-tight md:text-base">
+                {title}
+              </h1>
+            )}
+          </div>
+
+          {headerControls && (
+            <div className="ml-auto flex items-center gap-2">{headerControls}</div>
+          )}
+        </header>
+
+        {/* Corpo — rail retrátil + área de slides com scroll-snap */}
+        <div className="flex min-h-0 flex-1">
+          <aside
+            className={cn(
+              "flex shrink-0 flex-col gap-1 border-r border-[var(--border)] bg-[var(--surface)]/40 p-2 transition-[width] duration-200",
+              railOpen ? "w-56" : "w-[52px]",
+            )}
+          >
+            <button
+              onClick={() => setRailOpen((v) => !v)}
+              className="mb-1 inline-flex h-8 w-8 items-center justify-center self-start rounded-md text-[var(--text-subtle)] transition-colors hover:bg-[var(--elevated)] hover:text-[var(--text)]"
+              aria-label={railOpen ? "Recolher menu" : "Expandir menu"}
+              title={railOpen ? "Recolher menu" : "Expandir menu"}
+            >
+              {railOpen ? (
+                <PanelLeftClose className="h-4 w-4" strokeWidth={2} />
+              ) : (
+                <PanelLeftOpen className="h-4 w-4" strokeWidth={2} />
+              )}
             </button>
-          ))}
-        </aside>
 
-        {/* Deck vertical com scroll snap */}
-        <div ref={containerRef} className="min-w-0 flex-1">
-          {children}
+            <nav className="flex flex-col gap-0.5">
+              {toc.map((t, i) => {
+                const ativo = activeId === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => goTo(t.id)}
+                    title={t.label}
+                    aria-current={ativo ? "true" : undefined}
+                    className={cn(
+                      "group flex items-center gap-2.5 rounded-md py-1.5 text-left transition-colors",
+                      railOpen ? "px-2" : "justify-center px-0",
+                      ativo
+                        ? "bg-[var(--elevated)] text-[var(--text)]"
+                        : "text-[var(--text-muted)] hover:bg-[var(--elevated)]/60 hover:text-[var(--text)]",
+                    )}
+                  >
+                    <span
+                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold tabular-nums transition-colors"
+                      style={
+                        ativo
+                          ? { backgroundColor: corTema, color: "#fff" }
+                          : {
+                              backgroundColor: "var(--elevated)",
+                              color: "var(--text-subtle)",
+                            }
+                      }
+                    >
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    {railOpen && (
+                      <span className="truncate text-[12px]">{t.label}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
 
-          {/* Navegação flutuante — anterior/próximo */}
-          <div className="pointer-events-none sticky bottom-6 z-10 mt-4 flex justify-end gap-2 pr-2">
-            {prev && (
-              <NavPill onClick={() => goTo(prev.id)} corTema={corTema} direction="prev">
-                {prev.label}
-              </NavPill>
-            )}
-            {next && (
-              <NavPill onClick={() => goTo(next.id)} corTema={corTema} direction="next">
-                {next.label}
-              </NavPill>
-            )}
+          {/* Área de slides — 1 por tela, encaixe vertical */}
+          <div
+            ref={scrollRef}
+            className="relative min-w-0 flex-1 snap-y snap-mandatory overflow-y-auto scroll-smooth"
+          >
+            {children}
+
+            {/* Navegação flutuante — sobe / desce */}
+            <div className="pointer-events-none fixed bottom-6 right-6 z-10 flex flex-col gap-2">
+              <NavBtn
+                onClick={() => prev && goTo(prev.id)}
+                disabled={!prev}
+                label="Slide anterior"
+              >
+                <ChevronUp className="h-4 w-4" strokeWidth={2.5} />
+              </NavBtn>
+              <NavBtn
+                onClick={() => next && goTo(next.id)}
+                disabled={!next}
+                label="Próximo slide"
+              >
+                <ChevronDown className="h-4 w-4" strokeWidth={2.5} />
+              </NavBtn>
+            </div>
           </div>
         </div>
       </div>
@@ -136,28 +255,25 @@ export function SlideDeck({ children, backHref, toc, corTema, tituloModulo }: Sl
   );
 }
 
-function NavPill({
+function NavBtn({
   children,
   onClick,
-  corTema,
-  direction,
+  disabled,
+  label,
 }: {
   children: React.ReactNode;
   onClick: () => void;
-  corTema: string;
-  direction: "prev" | "next";
+  disabled?: boolean;
+  label: string;
 }) {
   return (
     <button
       onClick={onClick}
-      className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full border bg-[var(--elevated)] px-3 py-1.5 text-[11px] shadow-[var(--shadow-md)] transition-colors hover:bg-[var(--surface)]"
+      disabled={disabled}
+      aria-label={label}
+      className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--elevated)] text-[var(--text-muted)] shadow-[var(--shadow-md)] transition-colors hover:text-[var(--text)] disabled:cursor-default disabled:opacity-30"
     >
-      {direction === "prev" && <ChevronLeft className="h-3 w-3" strokeWidth={2} />}
-      <span className="text-[var(--text-muted)]">{direction === "prev" ? "Anterior" : "Próximo"}</span>
-      <span className="font-medium" style={{ color: corTema }}>
-        {children}
-      </span>
-      {direction === "next" && <ChevronRight className="h-3 w-3" strokeWidth={2} />}
+      {children}
     </button>
   );
 }
@@ -170,11 +286,20 @@ interface SlideProps {
   subtitle?: string;
   corTema: string;
   children: React.ReactNode;
-  /** Se true, o slide não força altura mínima da viewport — útil para tabelas longas. */
+  /** Se true, alinha o conteúdo ao topo (slides longos: tabelas, rankings). */
   fluid?: boolean;
 }
 
-export function Slide({ id, index, total, title, subtitle, corTema, children, fluid = false }: SlideProps) {
+export function Slide({
+  id,
+  index,
+  total,
+  title,
+  subtitle,
+  corTema,
+  children,
+  fluid = false,
+}: SlideProps) {
   const ctx = useContext(DeckContext);
   const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
@@ -184,7 +309,10 @@ export function Slide({ id, index, total, title, subtitle, corTema, children, fl
   }, [id, ctx]);
 
   const variants = useMemo(
-    () => (reduce ? undefined : { hidden: fadeSlideUp.hidden, visible: fadeSlideUp.visible }),
+    () =>
+      reduce
+        ? undefined
+        : { hidden: fadeSlideUp.hidden, visible: fadeSlideUp.visible },
     [reduce],
   );
 
@@ -198,33 +326,38 @@ export function Slide({ id, index, total, title, subtitle, corTema, children, fl
       variants={staggerContainer}
       transition={spring.gentle}
       className={cn(
-        "mb-8 flex flex-col rounded-3xl border bg-[var(--elevated)] p-6 shadow-[var(--shadow-sm)] lg:p-7",
-        // Não forçamos mais altura mínima da viewport — cria "buraco vazio" em
-        // slides curtos. Deixamos o conteúdo ditar a altura; a navegação por
-        // scroll snap continua funcionando via IntersectionObserver.
+        // min-h-full = ocupa a tela toda dentro do container de scroll; snap-start
+        // encaixa o topo do slide ao rolar. Slides curtos ficam centrados
+        // verticalmente; os `fluid` (longos) alinham ao topo para não cortar.
+        "flex min-h-full w-full snap-start flex-col px-4 py-8 sm:px-6 md:px-10 lg:px-14",
+        fluid ? "justify-start" : "justify-center",
       )}
     >
-      {/* Header do slide */}
-      <motion.header variants={variants} className="mb-5 flex items-baseline gap-3 border-b border-[var(--border)] pb-3">
-        <span
-          className="rounded-full px-2.5 py-0.5 text-[10px] font-bold tabular-nums tracking-wider"
-          style={{ backgroundColor: `${corTema}20`, color: corTema }}
+      <div className="mx-auto w-full max-w-[1700px]">
+        {/* Header do slide */}
+        <motion.header
+          variants={variants}
+          className="mb-5 flex items-baseline gap-3 border-b border-[var(--border)] pb-3"
         >
-          {String(index).padStart(2, "0")} / {String(total).padStart(2, "0")}
-        </span>
-        <div className="min-w-0">
-          <h2 className="truncate text-xl font-semibold tracking-tight text-[var(--text)] lg:text-2xl">
-            {title}
-          </h2>
-          {subtitle && (
-            <p className="mt-0.5 text-sm text-[var(--text-muted)]">{subtitle}</p>
-          )}
-        </div>
-      </motion.header>
+          <span
+            className="rounded-full px-2.5 py-0.5 text-[10px] font-bold tabular-nums tracking-wider"
+            style={{ backgroundColor: `${corTema}20`, color: corTema }}
+          >
+            {String(index).padStart(2, "0")} / {String(total).padStart(2, "0")}
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-xl font-semibold tracking-tight text-[var(--text)] md:text-2xl">
+              {title}
+            </h2>
+            {subtitle && (
+              <p className="mt-0.5 text-sm text-[var(--text-muted)]">{subtitle}</p>
+            )}
+          </div>
+        </motion.header>
 
-      {/* Conteúdo — altura natural, sem "esticar" para preencher tela cheia.
-       * Stagger para os filhos diretos que expuserem `variants={fadeSlideUp}`. */}
-      <div className="flex flex-col space-y-5">{children}</div>
+        {/* Conteúdo do slide */}
+        <div className="flex flex-col gap-5">{children}</div>
+      </div>
     </motion.section>
   );
 }

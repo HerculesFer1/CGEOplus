@@ -150,27 +150,32 @@ export function QueimadasDashboardView({
   );
 
   return (
-    <div className="pb-16">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
-            Dashboard Queimadas · modo apresentação
-          </div>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-            <span style={{ color: COR }}>Queimadas</span> INPE{" "}
-            <span className="text-[var(--text-muted)]">— {labelAno}</span>
-          </h1>
+    <SlideDeck
+      backHref="/monitoramento/queimadas"
+      toc={TOC}
+      corTema={COR}
+      tituloModulo="Queimadas"
+      title={
+        <>
+          <span style={{ color: COR }}>Queimadas</span> INPE{" "}
+          <span className="text-[var(--text-muted)]">— {labelAno}</span>
+        </>
+      }
+      headerControls={
+        <>
           {anoParcial && (
-            <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-500">
+            <span
+              className="hidden items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-500 sm:inline-flex"
+              title="Ano corrente — dados parciais até o último sync INPE"
+            >
               <AlertTriangle className="h-3 w-3" strokeWidth={2} />
-              Ano corrente — dados parciais até o último sync INPE
-            </p>
+              Parcial
+            </span>
           )}
-        </div>
-        <AnoDropdown anos={anosDisponiveis} anoAtual={anoAtual} corTema={COR} />
-      </header>
-
-      <SlideDeck backHref="/monitoramento/queimadas" toc={TOC} corTema={COR} tituloModulo="Queimadas">
+          <AnoDropdown anos={anosDisponiveis} anoAtual={anoAtual} corTema={COR} />
+        </>
+      }
+    >
         {/* SLIDE 1 — VISÃO GERAL */}
         <Slide
           id="visao"
@@ -321,8 +326,7 @@ export function QueimadasDashboardView({
         >
           <Metodologia anoAtual={anoConcreto} />
         </Slide>
-      </SlideDeck>
-    </div>
+    </SlideDeck>
   );
 }
 
