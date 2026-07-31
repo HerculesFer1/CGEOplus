@@ -19,7 +19,10 @@ e Ambiental (SEMARH). Uso interno.
   `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`.
 - React 19, TypeScript 5, Tailwind 4, shadcn/ui, Framer Motion, next-themes.
 - **Drizzle ORM** (`drizzle-orm/postgres-js`) para queries. Cliente único em
-  `src/lib/db/client.ts` com `postgres.js` (`max=1`, `prepare=false` — serverless-friendly).
+  `src/lib/db/client.ts` com `postgres.js` (`max=10`, `prepare=false`, transaction
+  pooler porta 6543). O `max=10` é proposital: os Server Components disparam várias
+  queries em paralelo (`Promise.all`) por request, então um pool maior evita
+  serializar. Não baixar sem medir.
 - **Supabase** para Auth e DB. **supabase-js só é usado no fluxo OAuth**
   (`src/lib/supabase/{client,server}.ts` + `/login` + `/auth/callback`). **Dados vêm
   todos via Drizzle** — não via REST/RPC do Supabase.
