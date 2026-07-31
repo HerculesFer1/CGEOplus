@@ -21,9 +21,11 @@ import {
 
 import { AnoDropdown } from "@/components/monit-ext/ano-dropdown";
 import { AssinaturaAmbientalCard } from "@/components/monit-ext/assinatura-ambiental";
+import { Bento, BentoCell } from "@/components/monit-ext/bento";
 import { MapaChoropleth } from "@/components/monit-ext/mapa-choropleth";
+import { RankingCompacto } from "@/components/monit-ext/ranking-compacto";
 import { Slide, SlideDeck } from "@/components/monit-ext/slide-deck";
-import { fadeSlideUp, staggerContainer } from "@/lib/design/motion";
+import { fadeSlideUp } from "@/lib/design/motion";
 import { MESES_LABEL, QUEIMADA_ESCALA_LOG, TEMA_COR } from "@/lib/monit-ext/constants";
 import type { IpaMunicipio } from "@/lib/monit-ext/ipa";
 import { formatNumber } from "@/lib/utils";
@@ -178,11 +180,13 @@ export function QueimadasDashboardView({
           subtitle="Panorama estadual + destaque de municípios em pressão crítica."
           corTema={COR}
         >
-          <SlideKpiRow
+          <VisaoGeralBento
             atual={atual}
             emAlertaCount={emAlerta.length}
             areaEmAlerta={areaEmAlerta}
             areaAtual={areaAtual}
+            emAlerta={emAlerta}
+            anoAtual={anoConcreto}
           />
           <NotaContexto>
             <strong>Em alerta CGEO+</strong> = municípios cuja área queimada
@@ -191,7 +195,6 @@ export function QueimadasDashboardView({
             prioritária. É o filtro que o CGEO+ usa para acionar triagem de
             campo.
           </NotaContexto>
-          <AlertaBanner emAlerta={emAlerta} anoAtual={anoConcreto} />
         </Slide>
 
         {/* SLIDE 2 — POR CLASSE AHP */}
@@ -381,7 +384,7 @@ function MunicipalPanel({
   }, [municipiosAno, priorityOnly, destacados]);
 
   return (
-    <motion.div variants={fadeSlideUp} className="space-y-4">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button
           onClick={() => setPriorityOnly((v) => !v)}
@@ -408,41 +411,61 @@ function MunicipalPanel({
         </p>
       </div>
 
-      <div className="relative">
-        <MapaChoropleth
-          dados={dadosMapa}
-          cor={COR}
-          labelMetrica="Área queimada"
-          sufixo="ha"
-          escalaLog={QUEIMADA_ESCALA_LOG}
-          onSelect={(nome) => {
-            const m = municipiosAno.find(
-              (mm) => mm.municipioNome.toLowerCase() === nome.toLowerCase(),
-            );
-            if (m) setSelecionado(m);
-          }}
-        />
-        {/* Card do município selecionado — flutua sobre o canto direito do mapa
-         *  para não roubar largura horizontal quando ninguém foi clicado. */}
-        {selecionado && (
-          <div className="pointer-events-auto absolute right-4 top-4 z-20 w-64 max-w-[calc(100%-2rem)] rounded-2xl border bg-[var(--elevated)]/95 p-4 shadow-[var(--shadow-md)] backdrop-blur-md">
-            <MunicipioCardBody
-              municipio={selecionado}
-              onClose={() => setSelecionado(null)}
+      <Bento className="lg:grid-cols-[1.55fr_1fr] lg:items-start">
+        <BentoCell>
+          <div className="relative">
+            <MapaChoropleth
+              dados={dadosMapa}
+              cor={COR}
+              labelMetrica="Área queimada"
+              sufixo="ha"
+              escalaLog={QUEIMADA_ESCALA_LOG}
+              onSelect={(nome) => {
+                const m = municipiosAno.find(
+                  (mm) => mm.municipioNome.toLowerCase() === nome.toLowerCase(),
+                );
+                if (m) setSelecionado(m);
+              }}
             />
+            {/* Card do município selecionado — flutua sobre o canto direito do
+             *  mapa para não roubar largura horizontal quando ninguém foi clicado. */}
+            {selecionado && (
+              <div className="pointer-events-auto absolute right-4 top-4 z-20 w-64 max-w-[calc(100%-2rem)] rounded-2xl border bg-[var(--elevated)]/95 p-4 shadow-[var(--shadow-md)] backdrop-blur-md">
+                <MunicipioCardBody
+                  municipio={selecionado}
+                  onClose={() => setSelecionado(null)}
+                />
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </BentoCell>
+        <BentoCell>
+          <RankingCompacto
+            titulo="Ranking · maior área queimada"
+            subtitulo="● marca os municípios em alerta CGEO+"
+            cor={COR}
+            sufixoValor="ha"
+            corPct={(p) => (p > 50 ? "#EF4444" : "var(--text-subtle)")}
+            itens={topMunicipios.map((m) => ({
+              nome: m.municipioNome,
+              valor: Number(m.areaQueimadaTotalHa),
+              pct: Number(m.pctAreaPrioritaria ?? 0),
+              destaque: Boolean(m.emAlerta),
+              destaqueTitle: "Em alerta CGEO+",
+            }))}
+          />
+        </BentoCell>
+      </Bento>
 
       <NotaContexto>
         Escala log de área queimada — os tons quentes crescem a cada faixa
         (1-500 → 500-2k → 2k-5k → 5k-10k → &gt;10k ha). O toggle
         <em> Só prioridade alta</em> aplica o mesmo critério do alerta CGEO+:
-        classe AHP 4-5 combinada com &gt;50% da área em zona prioritária.
+        classe AHP 4-5 combinada com &gt;50% da área em zona prioritária. O
+        <strong> %</strong> no ranking é a fração da área queimada em zona
+        prioritária.
       </NotaContexto>
-
-      <RankingMunicipal top={topMunicipios} />
-    </motion.div>
+    </div>
   );
 }
 
@@ -609,36 +632,59 @@ function MetodItem({ k, v }: { k: string; v: string }) {
    SLIDE 1
    ========================================================================== */
 
-function SlideKpiRow({
+/**
+ * Bento da Visão geral: os 4 KPIs se agrupam num 2×2 à esquerda (com "Em
+ * alerta CGEO+" destacado em vermelho — o gatilho de triagem) e o
+ * AlertaBanner vira a célula âncora à direita, listando os municípios
+ * críticos no mesmo campo de visão do contador. Sem municípios em alerta,
+ * degrada para a fileira de 4 KPIs em largura total.
+ */
+function VisaoGeralBento({
   atual,
   emAlertaCount,
   areaEmAlerta,
   areaAtual,
+  emAlerta,
+  anoAtual,
 }: {
   atual: SerieAno;
   emAlertaCount: number;
   areaEmAlerta: number;
   areaAtual: number;
+  emAlerta: MunicipioAno[];
+  anoAtual: number;
 }) {
   const pctEmAlerta = areaAtual > 0 ? (areaEmAlerta / areaAtual) * 100 : 0;
-  const kpis = [
-    { label: "Área queimada (ha)", valor: formatNumber(Math.round(areaAtual)) },
-    { label: "Cicatrizes detectadas", valor: formatNumber(atual.nCicatrizes) },
-    { label: "Municípios afetados", valor: `${atual.nMunicipiosAfetados}/224` },
+  const temAlerta = emAlerta.length > 0;
+  const kpis: Array<{
+    label: string;
+    valor: string;
+    sub?: string;
+    destaque?: boolean;
+  }> = [
     {
       label: "Em alerta CGEO+",
       valor: `${emAlertaCount}`,
       sub: `${pctEmAlerta.toFixed(1)}% da área queimada`,
       destaque: true,
     },
+    { label: "Área queimada (ha)", valor: formatNumber(Math.round(areaAtual)) },
+    { label: "Cicatrizes detectadas", valor: formatNumber(atual.nCicatrizes) },
+    { label: "Municípios afetados", valor: `${atual.nMunicipiosAfetados}/224` },
   ];
-  return (
-    <motion.div variants={staggerContainer} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+
+  const kpisGrid = (
+    <div
+      className={
+        temAlerta
+          ? "grid h-full grid-cols-2 gap-3"
+          : "grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+      }
+    >
       {kpis.map((k) => (
-        <motion.div
+        <div
           key={k.label}
-          variants={fadeSlideUp}
-          className="rounded-2xl border p-4"
+          className="flex flex-col justify-center rounded-2xl border p-4"
           style={{
             backgroundColor: k.destaque ? "rgba(239,68,68,0.08)" : "var(--surface)",
             borderColor: k.destaque ? "rgba(239,68,68,0.3)" : "var(--border)",
@@ -653,22 +699,36 @@ function SlideKpiRow({
           >
             {k.valor}
           </p>
-          {"sub" in k && k.sub && (
+          {k.sub && (
             <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">{k.sub}</p>
           )}
-        </motion.div>
+        </div>
       ))}
-    </motion.div>
+    </div>
+  );
+
+  if (!temAlerta) {
+    return (
+      <Bento>
+        <BentoCell>{kpisGrid}</BentoCell>
+      </Bento>
+    );
+  }
+
+  return (
+    <Bento className="lg:grid-cols-[1fr_1.4fr] lg:items-stretch">
+      <BentoCell>{kpisGrid}</BentoCell>
+      <BentoCell>
+        <AlertaBanner emAlerta={emAlerta} anoAtual={anoAtual} />
+      </BentoCell>
+    </Bento>
   );
 }
 
 function AlertaBanner({ emAlerta, anoAtual }: { emAlerta: MunicipioAno[]; anoAtual: number }) {
   if (emAlerta.length === 0) return null;
   return (
-    <motion.div
-      variants={fadeSlideUp}
-      className="rounded-2xl border border-red-500/25 bg-red-500/5 p-5"
-    >
+    <div className="h-full rounded-2xl border border-red-500/25 bg-red-500/5 p-5">
       <div className="flex items-start gap-3">
         <span className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-red-500/15 text-red-500">
           <AlertTriangle className="h-4.5 w-4.5" strokeWidth={2} />
@@ -697,7 +757,7 @@ function AlertaBanner({ emAlerta, anoAtual }: { emAlerta: MunicipioAno[]; anoAtu
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -794,82 +854,6 @@ function ClassesDist({
           </li>
         ))}
       </ul>
-    </motion.div>
-  );
-}
-
-/* ==========================================================================
-   SLIDE 3 — Ranking municipal
-   ========================================================================== */
-
-function RankingMunicipal({ top }: { top: MunicipioAno[] }) {
-  return (
-    <motion.div variants={fadeSlideUp}>
-      <div className="overflow-hidden rounded-2xl border border-[var(--border)]">
-        <table className="w-full text-sm">
-          <thead className="bg-[var(--surface)]">
-            <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
-              <th className="px-4 py-2.5">#</th>
-              <th className="px-4 py-2.5">Município</th>
-              <th className="px-4 py-2.5 text-right">Área (ha)</th>
-              <th className="px-4 py-2.5 text-right">Cicatrizes</th>
-              <th className="px-4 py-2.5 text-right">Classe AHP máx.</th>
-              <th className="px-4 py-2.5 text-right">% em prioritária</th>
-              <th className="px-4 py-2.5 text-right">Mês pico</th>
-              <th className="px-4 py-2.5 text-right">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--border)]">
-            {top.map((m, i) => {
-              const pct = Number(m.pctAreaPrioritaria ?? 0);
-              const cor = CORES_AHP[(m.classeMaxQueimada ?? 1) - 1];
-              return (
-                <tr
-                  key={m.municipioCod}
-                  className={`text-[13px] hover:bg-[var(--surface)] ${m.emAlerta ? "bg-red-500/[0.04]" : ""}`}
-                >
-                  <td className="px-4 py-2 text-[var(--text-subtle)] tabular-nums">
-                    {String(i + 1).padStart(2, "0")}
-                  </td>
-                  <td className="px-4 py-2 font-medium text-[var(--text)]">{m.municipioNome}</td>
-                  <td className="px-4 py-2 text-right tabular-nums text-[var(--text)]">
-                    {formatNumber(Math.round(Number(m.areaQueimadaTotalHa)))}
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums text-[var(--text-muted)]">
-                    {formatNumber(m.nCicatrizesTotal)}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <span
-                      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
-                      style={{ backgroundColor: `${cor}25`, color: cor }}
-                    >
-                      {m.classeMaxQueimada ?? "—"} · {LABEL_AHP[m.classeMaxQueimada ?? 1] ?? "—"}
-                    </span>
-                  </td>
-                  <td
-                    className="px-4 py-2 text-right tabular-nums"
-                    style={{ color: pct > 50 ? "#EF4444" : "var(--text-muted)" }}
-                  >
-                    {pct.toFixed(1)}%
-                  </td>
-                  <td className="px-4 py-2 text-right text-[var(--text-muted)]">
-                    {m.mesPico ? MESES_LABEL[m.mesPico - 1] : "—"}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {m.emAlerta ? (
-                      <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10.5px] font-semibold text-red-400">
-                        em alerta
-                      </span>
-                    ) : (
-                      <span className="text-[11px] text-[var(--text-subtle)]">—</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
     </motion.div>
   );
 }

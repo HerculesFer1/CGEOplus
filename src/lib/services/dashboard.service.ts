@@ -60,40 +60,43 @@ export interface CargaNucleo {
 
 export class DashboardService {
   async getKpisOverview(): Promise<KpiOverview> {
-    const [procRow] = await db
-      .select({ n: count() })
-      .from(processos);
-
-    const [analRow] = await db.select({ n: count() }).from(analises);
-
     const now = new Date();
     const currentMonth = now.toISOString().slice(0, 7);
     const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const prevMonth = prevDate.toISOString().slice(0, 7);
 
-    const [curMes] = await db
-      .select({ n: count() })
-      .from(analises)
-      .where(sql`to_char(${analises.dataAnalise}, 'YYYY-MM') = ${currentMonth}`);
-
-    const [prevMes] = await db
-      .select({ n: count() })
-      .from(analises)
-      .where(sql`to_char(${analises.dataAnalise}, 'YYYY-MM') = ${prevMonth}`);
+    // As 6 contagens são independentes entre si — disparamos em paralelo
+    // (1 round-trip) em vez de 6 awaits em série, que dominavam a latência
+    // do dashboard contra o banco remoto (sa-east-1).
+    const [[procRow], [analRow], [curMes], [prevMes], [finalizadas], [ativos]] =
+      await Promise.all([
+        db.select({ n: count() }).from(processos),
+        db.select({ n: count() }).from(analises),
+        db
+          .select({ n: count() })
+          .from(analises)
+          .where(
+            sql`to_char(${analises.dataAnalise}, 'YYYY-MM') = ${currentMonth}`,
+          ),
+        db
+          .select({ n: count() })
+          .from(analises)
+          .where(
+            sql`to_char(${analises.dataAnalise}, 'YYYY-MM') = ${prevMonth}`,
+          ),
+        db
+          .select({ n: count() })
+          .from(analises)
+          .where(eq(analises.resultado, "Finalizado")),
+        db
+          .select({ n: count() })
+          .from(servidores)
+          .where(eq(servidores.status, "ativo")),
+      ]);
 
     const cur = Number(curMes?.n ?? 0);
     const prev = Number(prevMes?.n ?? 0);
     const delta = prev > 0 ? ((cur - prev) / prev) * 100 : 0;
-
-    const [finalizadas] = await db
-      .select({ n: count() })
-      .from(analises)
-      .where(eq(analises.resultado, "Finalizado"));
-
-    const [ativos] = await db
-      .select({ n: count() })
-      .from(servidores)
-      .where(eq(servidores.status, "ativo"));
 
     const totalAn = Number(analRow?.n ?? 0);
 

@@ -39,12 +39,12 @@
     "drizzle-orm": "^0.45.2",
     "framer-motion": "^12.42.2",
     "lucide-react": "^1.23.0",
-    "next": "16.2.10",
+    "next": "16.2.12",
     "next-themes": "^0.4.6",
     "postgres": "^3.4.9",
-    "react": "19.2.4",
+    "react": "19.2.8",
     "react-day-picker": "^10.0.1",
-    "react-dom": "19.2.4",
+    "react-dom": "19.2.8",
     "react-hook-form": "^7.80.0",
     "react-markdown": "^9.1.0",
     "recharts": "^3.9.1",
@@ -66,7 +66,7 @@
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "16.2.12",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4",
     "tsx": "^4.22.5",
@@ -75,5 +75,8 @@
   },
   "optionalDependencies": {
     "@rolldown/binding-win32-x64-msvc": "^1.1.5"
+  },
+  "overrides": {
+    "sharp": "^0.35.3"
   }
 }

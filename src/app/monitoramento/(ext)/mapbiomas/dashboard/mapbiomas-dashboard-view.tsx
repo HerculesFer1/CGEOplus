@@ -23,9 +23,11 @@ import {
 
 import { AnoDropdown } from "@/components/monit-ext/ano-dropdown";
 import { AssinaturaAmbientalCard } from "@/components/monit-ext/assinatura-ambiental";
+import { Bento, BentoCell } from "@/components/monit-ext/bento";
 import { MapaChoropleth } from "@/components/monit-ext/mapa-choropleth";
+import { RankingCompacto } from "@/components/monit-ext/ranking-compacto";
 import { Slide, SlideDeck } from "@/components/monit-ext/slide-deck";
-import { fadeSlideUp, staggerContainer } from "@/lib/design/motion";
+import { fadeSlideUp } from "@/lib/design/motion";
 import { ANO_MIN, MESES_LABEL, TEMA_COR } from "@/lib/monit-ext/constants";
 import type { IpaMunicipio } from "@/lib/monit-ext/ipa";
 import type { MunicipioMapbiomas } from "@/lib/monit-ext/queries";
@@ -157,8 +159,7 @@ export function MapbiomasDashboardView({
           subtitle="Panorama do último ciclo publicado. KPIs de decisão + composição por classe fundiária-ambiental."
           corTema={COR}
         >
-          <SlideKpiRow atual={atual} anterior={anterior} />
-          <ClasseComposicao atual={atual} labelAno={labelAno} />
+          <VisaoExecutivaBento atual={atual} anterior={anterior} labelAno={labelAno} />
           <NotaContexto>
             <strong>Composição fundiária</strong> — Irregular = residual sem
             ASV nem DERADSA. Autorizado Pleno = ASV cobre ≥ 99% do polígono.
@@ -192,14 +193,32 @@ export function MapbiomasDashboardView({
           corTema={COR}
           fluid
         >
-          <MapaMunicipalMapbiomas municipiosAtual={municipiosAtual} labelAno={labelAno} />
+          <Bento className="lg:grid-cols-[1.55fr_1fr] lg:items-start">
+            <BentoCell>
+              <MapaMunicipalMapbiomas municipiosAtual={municipiosAtual} labelAno={labelAno} />
+            </BentoCell>
+            <BentoCell>
+              <RankingCompacto
+                titulo="Ranking · maior área irregular"
+                subtitulo={`${formatNumber(municipiosAtual.length)} municípios monitorados neste ano`}
+                cor={COR}
+                sufixoValor="ha"
+                itens={topMunicipios.map((m) => ({
+                  nome: m.municipio,
+                  valor: Number(m.haIrregular),
+                  pct: Number(m.pctIrregular ?? 0),
+                  destaque: Boolean(m.reincidente),
+                  destaqueTitle: `Reincidente — ${m.anosComAlertaIrregular?.length ?? 0} anos`,
+                }))}
+              />
+            </BentoCell>
+          </Bento>
           <NotaContexto>
             Escala log de área irregular — municípios sem alerta ficam em cinza
             claro. Faixas: 1-100 · 100-500 · 500-2k · 2k-10k · &gt;10k ha.
             Clique num município para abrir o cartão de contexto com bioma
             dominante, % irregular e reincidência.
           </NotaContexto>
-          <RankingMunicipal top={topMunicipios} totalMunicipios={municipiosAtual.length} />
         </Slide>
 
         {/* SLIDE 4 — ANÁLISE COMPARATIVA */}
@@ -293,7 +312,7 @@ function MapaMunicipalMapbiomas({
 }) {
   const [selecionado, setSelecionado] = useState<MunicipioMapbiomas | null>(null);
   return (
-    <motion.div variants={fadeSlideUp} className="relative">
+    <div className="relative">
       <MapaChoropleth
         dados={municipiosAtual.map((m) => ({
           municipio: m.municipio,
@@ -319,7 +338,7 @@ function MapaMunicipalMapbiomas({
           />
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
 
@@ -505,41 +524,76 @@ function DeltaChip({
    BLOCOS DO SLIDE 1
    ========================================================================== */
 
-function SlideKpiRow({ atual, anterior }: { atual: SerieAnualRow; anterior: SerieAnualRow | null }) {
+/**
+ * Bento da Visão executiva: a composição fundiária vira a célula âncora
+ * (esquerda, ~1.35fr) e os 4 KPIs se agrupam à direita num 2×2, com o IPI —
+ * o número de decisão — destacado no tom do tema. Substitui as duas faixas
+ * empilhadas (KPI-row + composição) por uma hierarquia por tamanho.
+ */
+function VisaoExecutivaBento({
+  atual,
+  anterior,
+  labelAno,
+}: {
+  atual: SerieAnualRow;
+  anterior: SerieAnualRow | null;
+  labelAno: string;
+}) {
   const ipi = Number(atual.ipiPct);
   const ipiAnt = anterior ? Number(anterior.ipiPct) : null;
   const deltaIpi = ipiAnt !== null ? Number((ipi - ipiAnt).toFixed(1)) : null;
 
-  const kpis = [
+  const kpis: Array<{
+    label: string;
+    valor: string;
+    delta?: string | null;
+    destaque?: boolean;
+  }> = [
+    {
+      label: "IPI",
+      valor: `${ipi.toFixed(1)}%`,
+      delta: deltaIpi === null ? null : `${deltaIpi > 0 ? "+" : ""}${deltaIpi}pp`,
+      destaque: true,
+    },
     { label: "Alertas", valor: formatNumber(atual.nAlertas) },
     { label: "Área total (ha)", valor: formatNumber(Math.round(Number(atual.areaTotalHa))) },
     { label: "Área irregular (ha)", valor: formatNumber(Math.round(Number(atual.areaIrregularHa))) },
-    { label: "IPI", valor: `${ipi.toFixed(1)}%`, delta: deltaIpi === null ? null : `${deltaIpi > 0 ? "+" : ""}${deltaIpi}pp` },
   ];
 
   return (
-    <motion.div
-      variants={staggerContainer}
-      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-    >
-      {kpis.map((k) => (
-        <motion.div
-          key={k.label}
-          variants={fadeSlideUp}
-          className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4"
-        >
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
-            {k.label}
-          </p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-[var(--text)]">
-            {k.valor}
-          </p>
-          {"delta" in k && k.delta && (
-            <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">{k.delta}</p>
-          )}
-        </motion.div>
-      ))}
-    </motion.div>
+    <Bento className="lg:grid-cols-[1.35fr_1fr] lg:items-stretch">
+      <BentoCell className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 lg:p-5">
+        <ClasseComposicao atual={atual} labelAno={labelAno} />
+      </BentoCell>
+      <BentoCell className="grid grid-cols-2 gap-3">
+        {kpis.map((k) => (
+          <div
+            key={k.label}
+            className="flex flex-col justify-center rounded-2xl border p-4"
+            style={{
+              backgroundColor: k.destaque ? `${COR}12` : "var(--surface)",
+              borderColor: k.destaque ? `${COR}55` : "var(--border)",
+            }}
+          >
+            <p
+              className="text-[10px] font-semibold uppercase tracking-wider"
+              style={{ color: k.destaque ? COR : "var(--text-subtle)" }}
+            >
+              {k.label}
+            </p>
+            <p
+              className="mt-1 text-2xl font-semibold tabular-nums"
+              style={{ color: k.destaque ? COR : "var(--text)" }}
+            >
+              {k.valor}
+            </p>
+            {k.delta && (
+              <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">{k.delta}</p>
+            )}
+          </div>
+        ))}
+      </BentoCell>
+    </Bento>
   );
 }
 
@@ -566,7 +620,7 @@ function ClasseComposicao({
   const total = data.reduce((s, d) => s + d.valor, 0);
 
   return (
-    <motion.div variants={fadeSlideUp} className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
       <div>
         <h4 className="text-sm font-semibold text-[var(--text)]">
           Composição fundiária — {labelAno}
@@ -639,7 +693,7 @@ function ClasseComposicao({
           </PieChart>
         </ResponsiveContainer>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -760,70 +814,6 @@ function SazonalidadeMensal({ mensal }: { mensal: Props["mensal"] }) {
    BLOCOS DO SLIDE 3 (municipal)
    ========================================================================== */
 
-function RankingMunicipal({
-  top,
-  totalMunicipios,
-}: {
-  top: MunicipioMapbiomas[];
-  totalMunicipios: number;
-}) {
-  return (
-    <motion.div variants={fadeSlideUp}>
-      <div className="mb-3 flex items-baseline justify-between">
-        <h4 className="text-sm font-semibold text-[var(--text)]">
-          Ranking · maior área irregular
-        </h4>
-        <p className="text-[11px] text-[var(--text-subtle)]">
-          {formatNumber(totalMunicipios)} municípios monitorados neste ano
-        </p>
-      </div>
-      <div className="overflow-hidden rounded-2xl border border-[var(--border)]">
-        <table className="w-full text-sm">
-          <thead className="bg-[var(--surface)]">
-            <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
-              <th className="px-4 py-2.5">#</th>
-              <th className="px-4 py-2.5">Município</th>
-              <th className="px-4 py-2.5">Bioma</th>
-              <th className="px-4 py-2.5 text-right">Área irregular (ha)</th>
-              <th className="px-4 py-2.5 text-right">% irregular</th>
-              <th className="px-4 py-2.5 text-right">Reincidência</th>
-              <th className="px-4 py-2.5">Vetor dominante</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--border)]">
-            {top.map((m, i) => (
-              <tr key={m.municipio} className="text-[13px] hover:bg-[var(--surface)]">
-                <td className="px-4 py-2 text-[var(--text-subtle)] tabular-nums">
-                  {String(i + 1).padStart(2, "0")}
-                </td>
-                <td className="px-4 py-2 font-medium text-[var(--text)]">{m.municipio}</td>
-                <td className="px-4 py-2 text-[var(--text-muted)]">{m.bioma ?? "—"}</td>
-                <td className="px-4 py-2 text-right tabular-nums text-[var(--text)]">
-                  {formatNumber(Math.round(Number(m.haIrregular)))}
-                </td>
-                <td className="px-4 py-2 text-right tabular-nums" style={{ color: Number(m.pctIrregular) >= 70 ? "#EF4444" : Number(m.pctIrregular) >= 40 ? "#F59E0B" : "var(--text-muted)" }}>
-                  {Number(m.pctIrregular).toFixed(1)}%
-                </td>
-                <td className="px-4 py-2 text-right text-[11px]">
-                  {m.reincidente ? (
-                    <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-red-400">
-                      {m.anosComAlertaIrregular?.length ?? 0} anos
-                    </span>
-                  ) : (
-                    <span className="text-[var(--text-subtle)]">—</span>
-                  )}
-                </td>
-                <td className="px-4 py-2 text-[var(--text-muted)]">
-                  {m.vpressaoDominante ?? "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </motion.div>
-  );
-}
 
 /* ==========================================================================
    BLOCOS DO SLIDE 4 (comparativa)
