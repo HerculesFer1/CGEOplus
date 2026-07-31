@@ -52,22 +52,38 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims valida o JWT localmente quando o projeto usa signing keys
+  // assimétricas (0 round-trips). Com chaves legadas (HS256) ele recai no
+  // mesmo caminho de validação remota do getUser — ou seja, sem regressão.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const claims = claimsData?.claims;
 
-  if (!user) return redirectTo(request, "/login", path);
+  if (!claims?.sub) return redirectTo(request, "/login", path);
 
-  // Busca approved + role via RLS (policy profiles_select_own libera o próprio).
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("approved, role")
-    .eq("id", user.id)
-    .maybeSingle();
+  // Caminho rápido: approved + cgeo_role vêm injetados no token pelo custom
+  // access token hook (public.custom_access_token_hook). Enquanto o hook não
+  // estiver registrado — ou em sessões emitidas antes dele — caímos no
+  // fallback com uma query a profiles, idêntico ao comportamento anterior.
+  const appMeta = (claims.app_metadata ?? {}) as {
+    approved?: boolean;
+    cgeo_role?: string | null;
+  };
+  let approved = appMeta.approved;
+  let role: string | null | undefined = appMeta.cgeo_role;
+
+  if (approved === undefined) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("approved, role")
+      .eq("id", claims.sub)
+      .maybeSingle();
+    approved = profile?.approved ?? false;
+    role = profile?.role ?? null;
+  }
 
   const isAguardando = path === "/aguardando-aprovacao";
 
-  if (!profile?.approved) {
+  if (!approved) {
     return isAguardando
       ? response
       : redirectTo(request, "/aguardando-aprovacao");
@@ -76,7 +92,7 @@ export async function proxy(request: NextRequest) {
   // Aprovado tentando ver a tela de espera → manda para o dashboard.
   if (isAguardando) return redirectTo(request, "/dashboard");
 
-  if (path.startsWith("/admin") && profile.role !== "admin") {
+  if (path.startsWith("/admin") && role !== "admin") {
     return redirectTo(request, "/dashboard");
   }
 
