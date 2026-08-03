@@ -74,3 +74,72 @@ export async function deleteCarImport(path: string): Promise<void> {
   const supabase = getServiceClient();
   await supabase.storage.from(BUCKET).remove([path]);
 }
+
+/**
+ * Lista recursivamente todos os arquivos (paths completos) do bucket.
+ * A convenção de path é `{ano}/{mes}/{arquivo}`, então varremos 2 níveis de
+ * "pastas" sintéticas do Supabase Storage (pastas têm `id === null`).
+ */
+export async function listAllCarImportPaths(): Promise<string[]> {
+  const supabase = getServiceClient();
+  const out: string[] = [];
+
+  async function walk(prefix: string): Promise<void> {
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .list(prefix, { limit: 1000 });
+    if (error || !data) return;
+    for (const entry of data) {
+      const full = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.id === null) {
+        // "pasta" sintética → desce um nível
+        await walk(full);
+      } else {
+        out.push(full);
+      }
+    }
+  }
+
+  await walk("");
+  return out;
+}
+
+/**
+ * Remove todos os arquivos de um período (`{ano}/{mes}/`) do bucket. Usado como
+ * mecanismo de limpeza: após uma importação gravar com sucesso, o CSV vira
+ * órfão (o dado já está no banco; o checksum fica em `car_importacao` para
+ * auditoria). Retorna a lista de paths removidos. Idempotente e best-effort:
+ * nunca deve derrubar o fluxo de importação.
+ */
+export async function cleanupCarImportPeriod(
+  ano: number,
+  mes: number,
+): Promise<string[]> {
+  const supabase = getServiceClient();
+  const prefix = `${ano}/${String(mes).padStart(2, "0")}`;
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .list(prefix, { limit: 1000 });
+  if (error || !data) return [];
+  const paths = data
+    .filter((e) => e.id !== null)
+    .map((e) => `${prefix}/${e.name}`);
+  if (paths.length > 0) {
+    await supabase.storage.from(BUCKET).remove(paths);
+  }
+  return paths;
+}
+
+/** Remove uma lista de paths do bucket, em lotes (limite de segurança da API). */
+export async function removeCarImportPaths(paths: string[]): Promise<number> {
+  if (paths.length === 0) return 0;
+  const supabase = getServiceClient();
+  const BATCH = 100;
+  let removed = 0;
+  for (let i = 0; i < paths.length; i += BATCH) {
+    const slice = paths.slice(i, i + BATCH);
+    const { error } = await supabase.storage.from(BUCKET).remove(slice);
+    if (!error) removed += slice.length;
+  }
+  return removed;
+}

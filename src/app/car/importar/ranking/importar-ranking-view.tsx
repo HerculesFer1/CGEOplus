@@ -403,6 +403,32 @@ function PreviewPanel({
 
   return (
     <div className="space-y-4">
+      {/* Sobrescrita — no TOPO do preview para não passar despercebida quando já
+          existe ranking do mês. Sem marcar, o botão "Inserir dados" fica bloqueado. */}
+      {preview.jaExiste && (
+        <Card className="border-[var(--warning)]/60 bg-[var(--warning)]/10">
+          <CardContent className="flex items-start gap-3 p-4">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[var(--warning)]" strokeWidth={1.75} />
+            <div className="flex-1 space-y-2 text-sm">
+              <p>
+                <strong>Já existe ranking para {String(mes).padStart(2, "0")}/{ano}</strong>
+                {" "}({preview.jaExiste.totalUfs} UFs, soma {formatNumber(preview.jaExiste.somaExistente)}).
+                {" "}Para atualizar o dashboard com estes dados, marque a opção abaixo.
+              </p>
+              <label className="flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-[var(--warning)]/50 bg-[var(--warning)]/10 px-3 py-2 font-medium text-[var(--text)]">
+                <input
+                  type="checkbox"
+                  checked={overwrite}
+                  onChange={(e) => onOverwriteChange(e.target.checked)}
+                  className="h-4 w-4 rounded border-[var(--border-strong)]"
+                />
+                <span>Sobrescrever ranking existente ao inserir</span>
+              </label>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -510,32 +536,13 @@ function PreviewPanel({
         </CardContent>
       </Card>
 
-      {/* Sobrescrita */}
-      {preview.jaExiste && (
-        <Card className="border-[var(--warning)]/40 bg-[var(--warning)]/5">
-          <CardContent className="flex items-start gap-3 p-4">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[var(--warning)]" strokeWidth={1.75} />
-            <div className="flex-1 space-y-2 text-sm">
-              <p>
-                <strong>Já existe ranking para {String(mes).padStart(2, "0")}/{ano}</strong>
-                {" "}({preview.jaExiste.totalUfs} UFs, soma {formatNumber(preview.jaExiste.somaExistente)}).
-              </p>
-              <label className="flex cursor-pointer items-center gap-2 text-[var(--text)]">
-                <input
-                  type="checkbox"
-                  checked={overwrite}
-                  onChange={(e) => onOverwriteChange(e.target.checked)}
-                  className="h-4 w-4 rounded border-[var(--border-strong)]"
-                />
-                <span>Sobrescrever ranking existente ao inserir.</span>
-              </label>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Ações */}
-      <div className="flex flex-wrap justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {preview.jaExiste && !overwrite && (
+          <span className="mr-auto text-xs font-medium text-[var(--warning)]">
+            Marque “Sobrescrever ranking existente” acima para habilitar.
+          </span>
+        )}
         <Button variant="outline" onClick={onReset} disabled={isPending}>
           <X className="mr-1.5 h-4 w-4" strokeWidth={1.75} />
           Cancelar

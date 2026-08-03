@@ -16,7 +16,7 @@ import {
   CarOverwriteRequired,
   type CarCommitStats,
 } from "@/lib/car/importer";
-import { downloadCarImport } from "@/lib/car/storage";
+import { cleanupCarImportPeriod, downloadCarImport } from "@/lib/car/storage";
 import { CarParseError, type CarBucket } from "@/lib/car/types";
 
 export const runtime = "nodejs";
@@ -70,9 +70,21 @@ export async function POST(req: Request) {
       overwrite: body.overwrite === true,
       importadoPor: null,
     });
+    // Mecanismo de limpeza: importação gravou com sucesso → o CSV no Storage
+    // virou órfão (o dado está no banco; o checksum fica em car_importacao para
+    // auditoria). Removemos os arquivos do período. Best-effort: uma falha aqui
+    // NUNCA deve derrubar a importação já concluída.
+    let arquivosRemovidos = 0;
+    try {
+      const removidos = await cleanupCarImportPeriod(ano, mes);
+      arquivosRemovidos = removidos.length;
+    } catch (cleanupErr) {
+      console.error("[car/commit] limpeza do Storage falhou (import OK):", cleanupErr);
+    }
+
     revalidatePath("/car");
     revalidatePath("/car/importar");
-    return NextResponse.json({ ok: true, data: stats });
+    return NextResponse.json({ ok: true, data: { ...stats, arquivosRemovidos } });
   } catch (err) {
     if (err instanceof CarOverwriteRequired) {
       return NextResponse.json(
